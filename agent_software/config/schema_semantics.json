@@ -1,0 +1,133 @@
+{
+  "_meta": {
+    "version": "1.1",
+    "updated": "2026-11-03",
+    "note": "语义是注释层，真实结构以 PRAGMA table_info 为准；本文件过期只会少信息，不会给出错误结构。money=true 的字段在库中以「分」存储，但 query_sql 返回时已换算为「元」；该标记仅供工具内部识别金额列，不返回给模型。业务口径见 policy_rules.json，本文件只写表与字段的含义。"
+  },
+  "tables": {
+    "categories": {
+      "desc": "商品分类表",
+      "columns": {
+        "category_id": {"desc": "分类主键"},
+        "category_name": {"desc": "分类名称，唯一"}
+      }
+    },
+    "products": {
+      "desc": "商品表",
+      "notes": [
+        "本表没有状态字段，商品当前状态要查 product_status_history",
+        "price_cents 是当前标价，不等于历史成交价"
+      ],
+      "columns": {
+        "product_id": {"desc": "商品主键"},
+        "product_name": {"desc": "商品名称"},
+        "sku": {"desc": "商品编码，唯一"},
+        "price_cents": {"desc": "当前标价", "money": true},
+        "category_id": {"desc": "所属分类，外键 → categories"}
+      }
+    },
+    "customers": {
+      "desc": "客户表",
+      "notes": [
+        "province / city 是客户注册地；订单的 shipping_province / shipping_city 是收货地，两套地址分开"
+      ],
+      "columns": {
+        "customer_id": {"desc": "客户主键"},
+        "customer_name": {"desc": "客户名称"},
+        "registered_at": {"desc": "注册时间", "format": "ISO8601"},
+        "province": {"desc": "注册省份"},
+        "city": {"desc": "注册城市"}
+      }
+    },
+    "orders": {
+      "desc": "订单主表，一行一个订单",
+      "notes": [
+        "shipping_province / shipping_city 是下单时的收货快照",
+        "本表没有金额字段，订单金额要从 order_items 计算"
+      ],
+      "columns": {
+        "order_id": {"desc": "订单主键"},
+        "customer_id": {"desc": "下单客户，外键 → customers"},
+        "order_time": {"desc": "下单时间", "format": "ISO8601"},
+        "order_status": {"desc": "订单当前状态", "enum": ["待支付", "已支付", "运输中", "已完成", "已取消"]},
+        "shipping_province": {"desc": "收货省份（快照）"},
+        "shipping_city": {"desc": "收货城市（快照）"}
+      }
+    },
+    "order_items": {
+      "desc": "订单明细，一行是订单里的一种商品；同一订单同一商品只有一行",
+      "notes": [
+        "unit_price_cents 是下单时的价格快照，不随商品当前价变化",
+        "本表没有行总价字段，金额 = quantity × unit_price_cents",
+        "金额字段在库中以「分」存储，但查询工具返回时已换算为「元」"
+      ],
+      "columns": {
+        "order_item_id": {"desc": "明细主键"},
+        "order_id": {"desc": "所属订单，外键 → orders"},
+        "product_id": {"desc": "商品，外键 → products"},
+        "unit_price_cents": {"desc": "成交单价（下单时快照）", "money": true},
+        "quantity": {"desc": "购买件数"}
+      }
+    },
+    "inventory_daily": {
+      "desc": "日终库存快照，每个商品每天一条",
+      "notes": [
+        "这是日终快照不是实时库存；「当前库存」= 每个商品最后一条快照",
+        "不要用本表累加推算库存变化，那要用 inventory_movements"
+      ],
+      "columns": {
+        "inventory_id": {"desc": "快照主键"},
+        "product_id": {"desc": "商品，外键 → products"},
+        "snapshot_date": {"desc": "快照日期", "format": "YYYY-MM-DD"},
+        "inventory_num": {"desc": "当日日终库存件数"},
+        "recorded_at": {"desc": "记录写入时间", "format": "ISO8601"}
+      }
+    },
+    "inventory_movements": {
+      "desc": "库存流水，库存变化的事实来源",
+      "notes": [
+        "inventory_daily 应能由本表重算，两者不应形成两套口径",
+        "quantity_delta 带符号：入库为正、出库为负",
+        "退货记录也在本表，movement_type = 退货入库"
+      ],
+      "columns": {
+        "movement_id": {"desc": "流水主键"},
+        "product_id": {"desc": "商品，外键 → products"},
+        "movement_type": {"desc": "变动类型", "enum": ["初始库存", "补货", "销售出库", "退货入库", "人工调整", "报损"]},
+        "quantity_delta": {"desc": "变动数量，正数入库、负数出库"},
+        "occurred_at": {"desc": "发生时间", "format": "ISO8601"},
+        "order_item_id": {"desc": "关联的订单明细，可为空"},
+        "note": {"desc": "备注"}
+      }
+    },
+    "product_status_history": {
+      "desc": "商品状态变更历史，只追加不覆盖",
+      "notes": [
+        "商品当前状态 = 本表按 status_history_id 倒序的第一条",
+        "products 表本身没有状态字段"
+      ],
+      "columns": {
+        "status_history_id": {"desc": "记录主键，越大越新"},
+        "product_id": {"desc": "商品，外键 → products"},
+        "status_after": {"desc": "变更后的状态", "enum": ["已上架", "未上架", "已删除"]},
+        "status_changed": {"desc": "变更时间", "format": "ISO8601"}
+      }
+    },
+    "order_status_history": {
+      "desc": "订单状态变更历史，只追加不覆盖",
+      "notes": [
+        "订单当前状态 = 本表按 order_history_id 倒序的第一条 to_status",
+        "首条记录 from_status 为 NULL，表示建单"
+      ],
+      "columns": {
+        "order_history_id": {"desc": "记录主键，越大越新"},
+        "order_id": {"desc": "订单，外键 → orders"},
+        "from_status": {"desc": "变更前状态，建单时为 NULL"},
+        "to_status": {"desc": "变更后状态", "enum": ["待支付", "已支付", "运输中", "已完成", "已取消"]},
+        "changed_at": {"desc": "变更时间", "format": "ISO8601"},
+        "reason_code": {"desc": "变更原因代码，如 created / paid / shipped / delivered / timeout_cancel"},
+        "change_note": {"desc": "变更说明"}
+      }
+    }
+  }
+}

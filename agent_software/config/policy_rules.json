@@ -1,0 +1,182 @@
+{
+  "_meta": {
+    "version": "v1",
+    "date": "2026-11-02",
+    "source": "本文件即运行时唯一来源（原 评测集/口径与程序侧约束.md 已归档至 AGENTGOGO/归档_Data_Analysis_Agent，不再作为实现依据）",
+    "note": "text 为权威原文。DEF-03 已于 2026-11-03 按 query_sql 实际行为改写（工具已换算，不得再除 100）。themes 见 _themes。一条规则可属多个主题。",
+    "themes": {
+      "order_scope": "订单范围（默认统计哪些订单）",
+      "time_range": "时间口径（区间怎么定、模糊表述怎么锚定）",
+      "metric_definition": "指标定义（销量、退货率怎么算）",
+      "algorithm_choice": "算法选择（波动用什么算法、用户换算法怎么办）",
+      "money_unit": "金额单位（分与元怎么转换）",
+      "result_disclosure": "结果披露（并列、空结果、全集、数据限制）",
+      "price_history": "价格历史（有没有专表、用什么充当）",
+      "address_compare": "地址比对（快照 vs 当前值）",
+      "status_history": "状态历史（当前状态从哪取、历史事实怎么判）",
+      "user_intent": "用户意图（歧义怎么处理、追问后怎么办）"
+    }
+  },
+  "rules": [
+    {
+      "rule_id": "DEF-01",
+      "kind": "default",
+      "themes": [
+        "order_scope"
+      ],
+      "text": "订单范围默认只统计 `orders.order_status='已完成'` 的订单，并在回答中说明这一默认。"
+    },
+    {
+      "rule_id": "DEF-02",
+      "kind": "default",
+      "themes": [
+        "metric_definition"
+      ],
+      "text": "销量按 `order_items.quantity` 合计，仅统计已完成订单，不扣除退货。"
+    },
+    {
+      "rule_id": "DEF-03",
+      "kind": "default",
+      "themes": [
+        "money_unit"
+      ],
+      "text": "金额字段（`price_cents` / `unit_price_cents`）在库中以「分」存储，但 query_sql 工具已在返回前自动换算成「元」。因此不要在 SQL 里除以 100 或乘以 0.01（会被工具拒绝），也不要在回答里再换算一次；工具返回的数值直接就是元，输出时说明单位为元即可。"
+    },
+    {
+      "rule_id": "DEF-04",
+      "kind": "default",
+      "themes": [
+        "algorithm_choice"
+      ],
+      "text": "「库存波动」默认按极差计算，说明所用算法，并追问是否要改用标准差或变异系数。"
+    },
+    {
+      "rule_id": "DEF-05",
+      "kind": "default",
+      "themes": [
+        "result_disclosure"
+      ],
+      "text": "排名出现并列时，全部列出，不擅自选择一个。"
+    },
+    {
+      "rule_id": "DEF-06",
+      "kind": "default",
+      "themes": [
+        "time_range"
+      ],
+      "text": "用户未限定时间范围时，按数据全跨度统计，并在回答中说明实际区间。"
+    },
+    {
+      "rule_id": "DEF-07",
+      "kind": "default",
+      "themes": [
+        "metric_definition"
+      ],
+      "text": "退货率按单个 `order_item` 的退货数量除以该明细的 `quantity` 计算，并说明分母口径。"
+    },
+    {
+      "rule_id": "DEF-08",
+      "kind": "default",
+      "themes": [
+        "result_disclosure"
+      ],
+      "text": "查询结果为空时，如实回答没有满足条件的结果，不得编造或强行给出候选。"
+    },
+    {
+      "rule_id": "DEF-09",
+      "kind": "default",
+      "themes": [
+        "price_history"
+      ],
+      "text": "问题涉及价格历史或价格变动时，只能使用 `order_items.unit_price_cents` 作为订单成交价格的观察值，并说明没有独立价格历史表；不得声称该结果等于完整商品调价历史。"
+    },
+    {
+      "rule_id": "DEF-10",
+      "kind": "default",
+      "themes": [
+        "result_disclosure"
+      ],
+      "text": "题目明确要求“每个商品”“所有商品”或完整覆盖时，以对应基础表为对象全集；无匹配事实的对象必须保留并输出 `0`，不得用内连接省略。普通排名或筛选题不因此自动扩展为全集。"
+    },
+    {
+      "rule_id": "CON-01",
+      "kind": "conditional",
+      "themes": [
+        "order_scope"
+      ],
+      "text": "用户明确指定其他订单范围时，以用户指定为准，并说明范围变化。"
+    },
+    {
+      "rule_id": "CON-02",
+      "kind": "conditional",
+      "themes": [
+        "time_range"
+      ],
+      "text": "用户使用“最近”“近七天”“这几天”等无法直接确定区间的表述时，以数据末尾为锚点，说明实际查询区间，并追问是否调整范围。"
+    },
+    {
+      "rule_id": "CON-03",
+      "kind": "conditional",
+      "themes": [
+        "user_intent"
+      ],
+      "text": "用户使用存在多种业务解释的词（如“停售”）时，先给出最贴近字面的答案，再指出其他常见解释，并追问是否扩大范围。"
+    },
+    {
+      "rule_id": "CON-04",
+      "kind": "conditional",
+      "themes": [
+        "algorithm_choice"
+      ],
+      "text": "用户要求更换库存波动算法时，改用指定算法重新计算，并说明结果是否变化。"
+    },
+    {
+      "rule_id": "CON-05",
+      "kind": "conditional",
+      "themes": [
+        "user_intent"
+      ],
+      "text": "用户追问或补充上下文后，结合上一轮结果重新查询，不要只在旧结论上追加解释。"
+    },
+    {
+      "rule_id": "CON-06",
+      "kind": "conditional",
+      "themes": [
+        "status_history"
+      ],
+      "text": "涉及订单、库存、商品状态等历史事实时，按事件发生时对应的数据或历史记录判断，不得直接用当前状态过滤历史成交。"
+    },
+    {
+      "rule_id": "CON-07",
+      "kind": "conditional",
+      "themes": [
+        "address_compare"
+      ],
+      "text": "涉及地址比较时，订单地址使用下单时快照 `orders.shipping_province/shipping_city`，客户地址使用 `customers.province/city`，并说明比较的是两套语义。"
+    },
+    {
+      "rule_id": "CON-08",
+      "kind": "conditional",
+      "themes": [
+        "status_history"
+      ],
+      "text": "涉及状态当前值时，使用对应历史表按 `status_changed DESC, status_history_id DESC` 或 `changed_at DESC, order_history_id DESC` 取最新记录，并与主表当前状态保持一致。"
+    },
+    {
+      "rule_id": "CON-09",
+      "kind": "conditional",
+      "themes": [
+        "metric_definition"
+      ],
+      "text": "涉及退货与销售跨期时，按明细关联退货流水，不用当月销量作退货率分母。"
+    },
+    {
+      "rule_id": "CON-10",
+      "kind": "conditional",
+      "themes": [
+        "result_disclosure"
+      ],
+      "text": "涉及无法由现有数据可靠判断的问题时，明确说明数据限制，给出可观察结论，不把有限数据包装成完整事实。"
+    }
+  ]
+}
