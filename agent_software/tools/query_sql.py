@@ -49,18 +49,59 @@ _AGENT_LIMIT = 25
 # 前端最多能展示的行数
 _DISPLAY_LIMIT = 500
 
-# 最近一次成功查询的完整结果，供前端展示（不进入 Agent 上下文）
-_last_result = {}
+# 前端展示用的查询结果缓存（不进入 Agent 上下文）。
+# 每成功执行一次查询就追加一条，不再按「行数最多」覆盖：
+# 行数多不等于主结果——审计/验证性查询经常比主结果更宽
+# （实测：主查询 8 行商品销量，一次历史状态核对返回 116 行，把主结果挤掉了）。
+# 哪一条是「主结果」交给界面选择，程序不再猜。
+_query_results = []
+# 内存保险丝：只保留最近 N 条，超出时丢弃最旧的（行为确定，不参与"选哪条"的判断）
+MAX_CACHED_RESULTS = 50
+_next_result_id = 1
 
 
+def get_query_results():
+    """按执行顺序返回本次问题内所有成功查询的结果（供前端选择展示）。"""
+    return list(_query_results)
+
+
+def get_result_by_id(result_id):
+    """按 result_id 取单条结果；找不到返回 None。"""
+    for item in _query_results:
+        if item["result_id"] == result_id:
+            return item
+    return None
+
+
+def clear_query_results():
+    """清空结果列表（开新题时调用），result_id 重新从 1 开始。"""
+    global _next_result_id
+    _query_results.clear()
+    _next_result_id = 1
+
+
+def _add_query_result(result):
+    """追加一条成功结果，返回带上 result_id 的那条。"""
+    global _next_result_id
+    result["result_id"] = _next_result_id
+    _next_result_id += 1
+    _query_results.append(result)
+    if len(_query_results) > MAX_CACHED_RESULTS:
+        _query_results.pop(0)   # 丢最旧的；刚追加的这条永远保留
+    return result
+
+
+# --- 兼容旧接口（过渡用，前端改成结果选择器后删除） ---
 def get_last_result():
-    """返回最近一次成功查询的 {columns, rows, total, truncated, display_truncated, preview_count, sql}。"""
-    return dict(_last_result)
+    """已废弃：返回最近一次成功查询的结果（不再返回行数最多的那次）。"""
+    return dict(_query_results[-1]) if _query_results else {}
 
 
 def clear_last_result():
-    """清空缓存（开新题、查询失败、空结果时调用）。"""
-    _last_result.clear()
+    """已废弃：等价于 clear_query_results()。"""
+    clear_query_results()
+
+
 _MONEY_FUNCS = {"sum","avg","max","min","total"}
 _MONEY_CONVERT = re.compile(r"/\s*100(\.0+)?\b|\*\s*0\.01\b")
 
@@ -177,19 +218,17 @@ def query_sql_func(sql: str):
                         f"另有 {omitted} 行未返回")
 
         # 缓存完整结果供前端展示（不进入 Agent 上下文）。
-        # 策略：只保留「行数最多」的那次查询——Agent 常在同题里跑多次验证性查询
-        # （COUNT / MIN / MAX / 查重复），若按「最后一次」覆盖，前端会展示验证结果而不是主结果。
-        if len(display_rows) >= len(_last_result.get("rows") or []):
-            _last_result.clear()
-            _last_result.update({
-                "columns": columns,
-                "rows": display_rows,
-                "total": total,
-                "truncated": truncated,
-                "display_truncated": display_truncated,
-                "preview_count": len(agent_rows),
-                "sql": clean[:300],
-            })
+        # 追加而非覆盖：一题里可能成功执行十几次查询，全部保留，由界面决定展示哪一条。
+        # rows 为空（0 行）也照样追加——"确实没有数据"本身就是要展示的结果。
+        _add_query_result({
+            "columns": columns,
+            "rows": display_rows,
+            "total": total,
+            "truncated": truncated,
+            "display_truncated": display_truncated,
+            "preview_count": len(agent_rows),
+            "sql": clean[:300],
+        })
 
         return envelope.ok({
             "columns": columns,
@@ -202,7 +241,7 @@ def query_sql_func(sql: str):
         })
 
     except sqlite3.Error as e:
-        _last_result.clear()
+        # 不清空已成功的结果：一次报错不该销毁前面查到的事实
         if "interrupted" in str(e):
             return envelope.fail("timeout","查询超过5秒已中断，请收窄范围或加LIMIT",retryable=True)
         return envelope.fail("sql_error",str(e))
