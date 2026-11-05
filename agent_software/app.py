@@ -8,6 +8,7 @@
 
 约定：
 - 结果区只放表格；「回复」里把表格去掉，只留文字说明，避免两处重复。
+- 一次提问可能产生多条成功查询：默认展示最近一条，多条时可下拉切换；程序不再猜"哪条是主结果"。
 - 数据库切换用原生 Radio + CSS 胶囊，选中状态由浏览器维护，不依赖动态 class。
 
 本文件只调用后端，不改动 main.py / tools/ 的任何逻辑。
@@ -20,7 +21,9 @@ import time
 import gradio as gr
 
 from main import run_agent
-from tools.query_sql import set_db, get_last_result, clear_last_result
+from tools.query_sql import (
+    set_db, get_query_results, get_result_by_id, clear_query_results,
+)
 
 EXAMPLES = [
     "九月都卖出去啥了？各卖了多少？",
@@ -48,6 +51,9 @@ def _with_result_head(body: str) -> str:
 
 _RESULT_EMPTY = _with_result_head(_EMPTY)
 _RESULT_LOADING = _with_result_head(_LOADING)
+# 本次提问没有任何一条成功查询时显示的空态：不显示上一题残影，也不从回答里猜表
+_NO_RESULT = _with_result_head(
+    "<div class='dsh-empty'>本次没有可展示的成功查询结果</div>")
 
 CSS = """
 /* ───────── 设计变量 ───────── */
@@ -635,25 +641,64 @@ def _fmt_trace(tool_trace) -> str:
 # ────────────────────────── 交互逻辑 ──────────────────────────
 
 def loading_state():
-    return _RESULT_LOADING, _LOADING_MD, _LOADING, ""
+    return (_RESULT_LOADING, _LOADING_MD, _LOADING, "",
+            gr.update(), "")
+
+
+def _selector_choices(results):
+    """下拉项：查询 N · 共 X 行 · SQL 片段（截 60 字），让人能认出是哪条查询。"""
+    choices = []
+    for r in results:
+        sql = " ".join((r.get("sql") or "").split())
+        if len(sql) > 60:
+            sql = sql[:60] + "…"
+        label = f"查询 {r['result_id']} · 共 {r.get('total', 0)} 行 · {sql}"
+        choices.append((label, r["result_id"]))
+    return choices
+
+
+def _trunc_html(result):
+    """行数提示：只跟着当前选中的那条结果，不读全局状态。"""
+    if not result:
+        return ""
+    total = result.get("total", 0)
+    if result.get("truncated"):
+        spans = [f"<span class='dsh-trunc'>当前查询共 {total} 行，"
+                 f"Agent 仅分析前 {result.get('preview_count', 25)} 行</span>"]
+    else:
+        spans = [f"<span class='dsh-trunc'>当前查询共 {total} 行，已全部展示</span>"]
+    if result.get("display_truncated"):
+        spans.append(f"<span class='dsh-trunc'>界面只展示前 "
+                     f"{len(result.get('rows') or [])} 行</span>")
+    return f"<div class='dsh-meta'>{''.join(spans)}</div>"
+
+
+def switch_result(result_id):
+    """下拉切换：只换左侧表格与行数提示，不动 Agent 的回答与上下文。"""
+    result = get_result_by_id(result_id) if result_id is not None else None
+    if not result:
+        return _NO_RESULT, ""
+    return _render_cache(result), _trunc_html(result)
 
 
 def ask(question, db_label):
     question = (question or "").strip()
     if not question:
-        return _RESULT_EMPTY, "**请先输入问题。**", _EMPTY_TRACE, ""
+        return (_RESULT_EMPTY, "**请先输入问题。**", _EMPTY_TRACE, "",
+                gr.update(), "")
 
     db_key = "dirty" if "脏" in (db_label or "") else "clean"
     set_db(db_key)
-    clear_last_result()          # 开新题先清，避免沿用上一题结果
+    clear_query_results()        # 开新题先清，避免沿用上一题结果
 
     t0 = time.time()
     try:
         result = run_agent(question)
     except Exception as e:
         err = f"{type(e).__name__}: {e}"
-        return _RESULT_EMPTY, f"**运行出错**：`{err}`", (
-            f"<div class='dsh-step dsh-fail-step'>{html.escape(err)}</div>"), ""
+        return (_RESULT_EMPTY, f"**运行出错**：`{err}`",
+                f"<div class='dsh-step dsh-fail-step'>{html.escape(err)}</div>",
+                "", gr.update(choices=[], value=None, visible=False), "")
     elapsed = time.time() - t0
 
     full = result.get("answer") or "（模型没有返回内容）"
@@ -667,27 +712,29 @@ def ask(question, db_label):
 
     steps = result.get("steps") or 0
     tokens = result.get("tokens") or 0
-    # 截断说明由程序补，不依赖模型转述；两种截断分开显示
-    info = get_last_result()
-    spans = []
-    if info.get("truncated"):
-        spans.append(f"<span class='dsh-trunc'>结果共 {info['total']} 行，"
-                     f"Agent 仅分析前 {info.get('preview_count', 25)} 行</span>")
-    if info.get("display_truncated"):
-        spans.append(f"<span class='dsh-trunc'>界面最多展示 {len(info.get('rows') or [])} 行</span>")
-    trunc_spans = "".join(spans)
-
+    # 底部只放"这次提问"的信息；行数提示跟着选中的查询走，不放在这里
     meta = (f"<div class='dsh-meta'>"
             f"<span>{'脏库' if db_key == 'dirty' else '干净库'}</span>"
             f"<span>{steps} 步</span><span>{tokens:,} tokens</span>"
-            f"<span>{elapsed:.1f}s</span>{trunc_spans}</div>")
+            f"<span>{elapsed:.1f}s</span></div>")
 
-    # 左栏优先用缓存的结构化结果；没有缓存时退回从回答里抽表
-    cached = get_last_result()
-    left_html = _render_cache(cached) if cached.get("columns") else _render_left(full)
+    results = get_query_results()
+    if not results:
+        # 没有任何成功查询：明确空态，不留上一题残影、也不从回答里猜表
+        return (_NO_RESULT, text_only,
+                _fmt_trace(result.get("tool_trace") or []), meta,
+                gr.update(choices=[], value=None, visible=False),
+                "<div class='dsh-meta'><span>本次没有成功的查询结果</span></div>")
 
-    return (left_html, text_only,
-            _fmt_trace(result.get("tool_trace") or []), meta)
+    # 默认展示最近一次成功查询——但界面不宣称它是"主结果"，用户可自行切换
+    selected = results[-1]
+    selector = gr.update(choices=_selector_choices(results),
+                         value=selected["result_id"],
+                         visible=len(results) > 1)
+
+    return (_render_cache(selected), text_only,
+            _fmt_trace(result.get("tool_trace") or []), meta,
+            selector, _trunc_html(selected))
 
 
 def build():
@@ -726,6 +773,15 @@ def build():
                     clear = gr.Button("清空", size="sm", scale=0)
                     submit = gr.Button("提问", variant="primary", size="sm", scale=0)
 
+                selector = gr.Dropdown(
+                    label="展示哪一次查询",
+                    choices=[],
+                    value=None,
+                    visible=False,
+                    interactive=True,
+                    elem_classes=["dsh-selector"],
+                )
+                trunc = gr.HTML("")
                 left = gr.HTML(_RESULT_EMPTY, elem_classes=["scroll-area"])
 
             # ── 右侧：卡片切换 ──
@@ -742,14 +798,18 @@ def build():
             for ex in EXAMPLES:
                 gr.Button(ex, size="sm").click(lambda x=ex: x, outputs=question)
 
-        submit.click(loading_state, outputs=[left, answer, trace, meta]) \
-              .then(ask, inputs=[question, db], outputs=[left, answer, trace, meta])
-        question.submit(loading_state, outputs=[left, answer, trace, meta]) \
-                .then(ask, inputs=[question, db], outputs=[left, answer, trace, meta])
+        _OUTS = [left, answer, trace, meta, selector, trunc]
+        submit.click(loading_state, outputs=_OUTS) \
+              .then(ask, inputs=[question, db], outputs=_OUTS)
+        question.submit(loading_state, outputs=_OUTS) \
+                .then(ask, inputs=[question, db], outputs=_OUTS)
+
+        selector.change(switch_result, inputs=[selector], outputs=[left, trunc])
 
         clear.click(
-            lambda: ("", _RESULT_EMPTY, _EMPTY_REPLY, _EMPTY_TRACE, ""),
-            outputs=[question, left, answer, trace, meta],
+            lambda: ("", _RESULT_EMPTY, _EMPTY_REPLY, _EMPTY_TRACE, "",
+                     gr.update(choices=[], value=None, visible=False), ""),
+            outputs=[question] + _OUTS,
         )
 
     return demo
