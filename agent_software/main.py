@@ -107,11 +107,23 @@ def run_agent(question: str) -> dict:
                     result = envelope.fail("bad_parameter", entry["error_message"])
                 else:
                     entry["args"] = args
-                    result = fn(**args)
-                    parsed = json.loads(result)
-                    entry["ok"] = parsed["ok"]
-                    entry["error_type"] = parsed["error_type"]
-                    entry["error_message"] = parsed["error_message"]
+                    try:
+                        result = fn(**args)
+                        parsed = json.loads(result)
+                        entry["ok"] = bool(parsed.get("ok"))
+                        entry["error_type"] = parsed.get("error_type")
+                        entry["error_message"] = parsed.get("error_message")
+                    except TypeError as e:
+                        # 参数对不上（多传/漏传/类型错）：模型改参数重试有意义
+                        entry["error_type"] = "bad_parameter"
+                        entry["error_message"] = f"工具 {name} 参数不匹配：{e}"
+                        result = envelope.fail("bad_parameter", entry["error_message"],
+                                               retryable=True)
+                    except Exception as e:
+                        # 工具自身异常：不诱导重试，把类型和原因暴露出来
+                        entry["error_type"] = "internal"
+                        entry["error_message"] = f"工具 {name} 执行异常：{type(e).__name__}: {e}"
+                        result = envelope.fail("internal", entry["error_message"])
 
             tool_trace.append(entry)
             messages.append({
