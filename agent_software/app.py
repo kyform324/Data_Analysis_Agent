@@ -234,6 +234,24 @@ footer { display: none !important; }
 }
 .dsh-actions button.secondary:hover { background: var(--dsh-soft) !important; }
 
+/* ───────── 查询选择器 ───────── */
+/* 标题与行数提示排在同一行，标题由 _trunc_html 渲染，Dropdown 自带 label 关掉 */
+.dsh-trunc-wrap {
+  margin: -2px 0 -8px !important;
+  padding: 0 !important; width: auto !important; min-width: 0 !important;
+}
+.dsh-trunc-wrap .html-container,
+.dsh-trunc-wrap .prose {
+  padding: 0 !important; margin: 0 !important; min-height: 0 !important;
+}
+.dsh-trunc-wrap:not(:has(.dsh-meta)) { display: none !important; }
+.dsh-meta.dsh-meta-left { justify-content: flex-start; }
+.dsh-meta span.dsh-sel-chip {
+  padding: 2px 8px; border-radius: 6px;
+  background: var(--dsh-accent-soft); border: 1px solid transparent;
+  color: var(--dsh-accent); font-weight: 600;
+}
+
 /* ───────── 结果卡片 ───────── */
 .dsh-card-head {
   flex: 0 0 auto;
@@ -657,8 +675,12 @@ def _selector_choices(results):
     return choices
 
 
-def _trunc_html(result):
-    """行数提示：只跟着当前选中的那条结果，不读全局状态。"""
+def _trunc_html(result, with_label=False):
+    """行数提示：只跟着当前选中的那条结果，不读全局状态。
+
+    with_label=True 时在同一行前面补上「展示哪一次查询」标题芯片，
+    这样标题和行数提示挨在一起，而不是分处两行。
+    """
     if not result:
         return ""
     total = result.get("total", 0)
@@ -670,7 +692,9 @@ def _trunc_html(result):
     if result.get("display_truncated"):
         spans.append(f"<span class='dsh-trunc'>界面只展示前 "
                      f"{len(result.get('rows') or [])} 行</span>")
-    return f"<div class='dsh-meta'>{''.join(spans)}</div>"
+    chip = ("<span class='dsh-sel-chip'>展示哪一次查询</span>"
+            if with_label else "")
+    return f"<div class='dsh-meta dsh-meta-left'>{chip}{''.join(spans)}</div>"
 
 
 def switch_result(result_id):
@@ -678,7 +702,8 @@ def switch_result(result_id):
     result = get_result_by_id(result_id) if result_id is not None else None
     if not result:
         return _NO_RESULT, ""
-    return _render_cache(result), _trunc_html(result)
+    return (_render_cache(result),
+            _trunc_html(result, with_label=len(get_query_results()) > 1))
 
 
 def ask(question, db_label):
@@ -734,7 +759,7 @@ def ask(question, db_label):
 
     return (_render_cache(selected), text_only,
             _fmt_trace(result.get("tool_trace") or []), meta,
-            selector, _trunc_html(selected))
+            selector, _trunc_html(selected, with_label=len(results) > 1))
 
 
 def build():
@@ -773,15 +798,15 @@ def build():
                     clear = gr.Button("清空", size="sm", scale=0)
                     submit = gr.Button("提问", variant="primary", size="sm", scale=0)
 
+                trunc = gr.HTML("", elem_classes=["dsh-trunc-wrap"])
                 selector = gr.Dropdown(
-                    label="展示哪一次查询",
+                    show_label=False,
                     choices=[],
                     value=None,
                     visible=False,
                     interactive=True,
                     elem_classes=["dsh-selector"],
                 )
-                trunc = gr.HTML("")
                 left = gr.HTML(_RESULT_EMPTY, elem_classes=["scroll-area"])
 
             # ── 右侧：卡片切换 ──
