@@ -19,19 +19,19 @@ sys.path.insert(0, str(BASE.parent / "agent_software"))
 
 from main import run_agent, MODEL_NAME, TEMPERATURE, MAX_STEPS  # noqa: E402
 from tools.query_sql import set_db  # noqa: E402
+from run_paths import resolve_dir  # noqa: E402
 
 QFILE = BASE / "questions.json"
-OUT = BASE / "runs_raw.json"
 
 
-def load_runs():
-    if OUT.exists():
-        return json.loads(OUT.read_text(encoding="utf-8"))
+def load_runs(path):
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))
     return []
 
 
-def save_runs(runs):
-    OUT.write_text(json.dumps(runs, ensure_ascii=False, indent=2), encoding="utf-8")
+def save_runs(path, runs):
+    path.write_text(json.dumps(runs, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def main():
@@ -40,7 +40,13 @@ def main():
     ap.add_argument("--runs", type=int, default=3, help="每题跑几次，默认 3")
     ap.add_argument("--no-schema", action="store_true",
                     help="停用 inspect_schema（工具注册 + 提示词一起移除），用于 A/B 对照组")
+    ap.add_argument("--dir", default=None,
+                    help="批次目录，如 runs/20261106_val0.2_role；省略则取最近一个批次")
     args = ap.parse_args()
+
+    out_dir = resolve_dir(args.dir, create=bool(args.dir))
+    OUT = out_dir / "runs_raw.json"
+    print(f"批次目录：{OUT.parent}")
 
     if args.no_schema:
         import main as _main
@@ -60,7 +66,7 @@ def main():
             print(f"未找到题号 {args.only}")
             return
 
-    runs = load_runs()
+    runs = load_runs(OUT)
     done = {(r["question_id"], r["run"]) for r in runs}
 
     total = len(questions) * args.runs
@@ -104,7 +110,7 @@ def main():
             rec["elapsed_sec"] = round(time.time() - t0, 1)
 
             runs.append(rec)
-            save_runs(runs)  # 每条立刻落盘
+            save_runs(OUT, runs)  # 每条立刻落盘
 
             print(f"[{n}/{total}] {rid} ok={rec['ok']} steps={rec['steps']} "
                   f"tokens={rec['tokens']} {rec['elapsed_sec']}s")

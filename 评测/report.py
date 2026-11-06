@@ -18,8 +18,8 @@ import statistics
 from datetime import datetime
 
 BASE = pathlib.Path(__file__).resolve().parent
-RUNS = BASE / "runs_raw.json"
-JUDGE = BASE / "judgement.json"
+
+from run_paths import resolve_dir  # noqa: E402
 
 GRADE = lambda s: "✅" if s >= 80 else ("⚠️" if s >= 50 else "❌")
 PASS = lambda s: s >= 50
@@ -125,10 +125,13 @@ def cross_check(all_runs, median):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--stamp", default=datetime.now().strftime("%Y%m%d_%H%M"))
+    ap.add_argument("--dir", default=None,
+                    help="批次目录，如 runs/20261106_val0.2_role；省略则取最近一个批次")
     args = ap.parse_args()
 
-    runs = load(RUNS)
-    judge = load(JUDGE)
+    out_dir = resolve_dir(args.dir)
+    runs = load(out_dir / "runs_raw.json")
+    judge = load(out_dir / "judgement.json")
 
     meta = {
         "eval_version": "eval_v2",
@@ -153,9 +156,9 @@ def main():
         return 1
 
     name = f"评测报告_eval_v2_{args.stamp}"
-    (BASE / f"{name}.all_runs.json").write_text(
+    (out_dir / f"{name}.all_runs.json").write_text(
         json.dumps(all_runs, ensure_ascii=False, indent=2), encoding="utf-8")
-    (BASE / f"{name}.median_runs.json").write_text(
+    (out_dir / f"{name}.median_runs.json").write_text(
         json.dumps(median, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print("4 条交叉校验通过")

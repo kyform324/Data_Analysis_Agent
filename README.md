@@ -77,7 +77,8 @@ agent_software/
   tools/           三个工具：query_sql / policy_lookup / inspect_schema
   config/          口径规则 20 条、表语义 9 张（唯一语义来源）
   app.py           Gradio 界面
-评测/              跑题、判分、出报告的脚本 + 报告
+评测/              跑题、判分、出报告的脚本
+  runs/            按批次存放的运行结果（<日期>_<条件>/）
 评测集/            22 道题的题面与判据
 SQL_test/          造数脚本（运行时不被 Agent 导入）
 data/              两份基线库（干净：demo_v2_eval.sqlite3 / 注入脏数据：demo_v2_eval_dirty.sqlite3）
@@ -116,12 +117,14 @@ tests/             回归测试（零依赖，可直接 python 运行）
 
 ```bash
 cd 评测
-python run_eval.py              # 22 题 × 3 次，断点续跑
-python make_judgement.py        # 生成 judgement.json
-python report.py                # 交叉校验后输出 all_runs / median_runs
+python run_eval.py --dir runs/20261106_val0.2_role     # 22 题 × 3 次，断点续跑
+python make_judgement.py --dir runs/20261106_val0.2_role
+python report.py --dir runs/20261106_val0.2_role       # 交叉校验后输出 all_runs / median_runs
 ```
 
-题面与判据见 `评测集/eval_v2_评测集.md`，完整报告见 `评测/评测报告_eval_v2_20261103_1711.md`。
+批次目录约定见 `评测/runs/README.md`：题目只有一份，变的是"用哪版代码跑"，所以按日期建批次目录。
+
+题面与判据见 `评测集/eval_v2_评测集.md`，完整报告见 `评测/runs/20261103_temp0.2_无role/评测报告_eval_v2_20261103_1711.md`。
 
 ## 措辞鲁棒性（小样本观察）
 

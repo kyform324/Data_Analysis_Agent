@@ -3,11 +3,21 @@
 默认按题型给满分（常规/边界 2 点 × 50；脏库 4 层 × 25），只对已验证的失败项覆盖。
 失败项依据见 notes，判分依据是评测集的判据 + 逐条核对答案。
 """
+import argparse
 import json
 import pathlib
 
+from run_paths import resolve_dir
+
 BASE = pathlib.Path(__file__).resolve().parent
-runs = json.loads((BASE / "runs_raw.json").read_text(encoding="utf-8"))
+
+ap = argparse.ArgumentParser()
+ap.add_argument("--dir", default=None,
+                help="批次目录，如 runs/20261106_val0.2_role；省略则取最近一个批次")
+args = ap.parse_args()
+OUT_DIR = resolve_dir(args.dir)
+
+runs = json.loads((OUT_DIR / "runs_raw.json").read_text(encoding="utf-8"))
 questions = json.loads((BASE / "questions.json").read_text(encoding="utf-8"))
 kind_of = {q["id"]: q["kind"] for q in questions}
 
@@ -45,7 +55,7 @@ for r in runs:
 # 脏库-01#2 的影响层措辞不精确（说「缺少状态流转记录」，实为缺「已完成」那一条），但结论正确
 out["脏库-01#2"]["notes"] = "发现与定位正确；影响层措辞略不精确（说「缺少状态流转记录」，实为缺「已完成」那一条），结论 13 vs 14 正确，不扣分。"
 
-(BASE / "judgement.json").write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
-print(f"已写入 judgement.json，共 {len(out)} 条")
+(OUT_DIR / "judgement.json").write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+print(f"已写入 {OUT_DIR / 'judgement.json'}，共 {len(out)} 条")
 bad = [k for k, v in out.items() if v["score"] < 100]
 print("非满分：", ", ".join(bad))
