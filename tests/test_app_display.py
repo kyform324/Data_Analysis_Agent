@@ -108,7 +108,29 @@ t_none, hint_none = app.switch_result(999)
 check("切换到不存在的 id 返回空态", "本次没有可展示的成功查询结果" in t_none)
 check("不存在 id 时提示为空", hint_none == "")
 
-# ── 7. build() 能构造出界面（不 launch） ──
+# ── 7. 默认展示按 role 选：display → analysis → 最后一次 ──
+rs_mixed = [
+    {"result_id": 1, "role": "analysis", "total": 5, "sql": "SELECT 1"},
+    {"result_id": 2, "role": "display", "total": 248, "sql": "SELECT 2"},
+    {"result_id": 3, "role": "verification", "total": 8, "sql": "SELECT 3"},
+]
+check("优先选最后一个 display", app._pick_default(rs_mixed)["result_id"] == 2)
+rs_no_display = [
+    {"result_id": 1, "role": "verification", "total": 3, "sql": "SELECT 1"},
+    {"result_id": 2, "role": "analysis", "total": 7, "sql": "SELECT 2"},
+]
+check("没有 display 时退到最后一个 analysis",
+      app._pick_default(rs_no_display)["result_id"] == 2)
+rs_only_verification = [
+    {"result_id": 1, "role": "verification", "total": 3, "sql": "SELECT 1"},
+    {"result_id": 2, "role": "verification", "total": 9, "sql": "SELECT 2"},
+]
+check("全无 display/analysis 时退回最后一条",
+      app._pick_default(rs_only_verification)["result_id"] == 2)
+check("下拉标签含 role", "display" in app._selector_choices(rs_mixed)[1][0],
+      app._selector_choices(rs_mixed)[1][0][:40])
+
+# ── 8. build() 能构造出界面（不 launch） ──
 demo = app.build()
 check("build() 成功构造界面", demo is not None, type(demo).__name__)
 

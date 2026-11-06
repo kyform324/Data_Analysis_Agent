@@ -16,6 +16,11 @@ query_sql_schema = {
                 "sql":{
                     "type":"string",
                     "description":"一条完整的SELECT或WITH查询语句"
+                },
+                "role":{
+                    "type":"string",
+                    "enum":["display","analysis","verification"],
+                    "description":"这次查询的用途。display=这条结果就是给用户看的最终表（每题通常只有一条）；analysis=中间分析（默认）；verification=校验或核对，不是给用户看的结论"
                 }
             },
             "required":["sql"]
@@ -25,6 +30,8 @@ query_sql_schema = {
 }
 
 SQL_TIMEOUT = 5
+# 查询用途：由模型显式声明，程序据此决定默认展示哪一条（不再按行数多少或先后顺序猜）
+_ROLES = {"display", "analysis", "verification"}
 def _load_money_columns() -> set:
     """金额列从语义文件推导（money == true），不再硬编码。
 
@@ -123,7 +130,11 @@ def set_db(name="clean"):
     return _db
 
 
-def query_sql_func(sql: str):
+def query_sql_func(sql: str, role: str = "analysis"):
+    if role not in _ROLES:
+        return envelope.fail("bad_parameter",
+                             f"role 只能是 {sorted(_ROLES)} 之一，收到 {role!r}",
+                             retryable=True)
     new_sql = sql.strip()
     while True:
         new_sql = new_sql.strip()
@@ -221,6 +232,7 @@ def query_sql_func(sql: str):
         # 追加而非覆盖：一题里可能成功执行十几次查询，全部保留，由界面决定展示哪一条。
         # rows 为空（0 行）也照样追加——"确实没有数据"本身就是要展示的结果。
         _add_query_result({
+            "role": role,
             "columns": columns,
             "rows": display_rows,
             "total": total,

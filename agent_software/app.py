@@ -664,15 +664,29 @@ def loading_state():
 
 
 def _selector_choices(results):
-    """下拉项：查询 N · 共 X 行 · SQL 片段（截 60 字），让人能认出是哪条查询。"""
+    """下拉项：查询 N · 用途 · 共 X 行 · SQL 片段（截 60 字），让人能认出是哪条查询。"""
     choices = []
     for r in results:
         sql = " ".join((r.get("sql") or "").split())
         if len(sql) > 60:
             sql = sql[:60] + "…"
-        label = f"查询 {r['result_id']} · 共 {r.get('total', 0)} 行 · {sql}"
+        role = r.get("role") or "analysis"
+        label = f"查询 {r['result_id']} · {role} · 共 {r.get('total', 0)} 行 · {sql}"
         choices.append((label, r["result_id"]))
     return choices
+
+
+def _pick_default(results):
+    """默认展示哪一条：最后一个 display → 最后一个 analysis → 最后一次成功查询。
+
+    display 由模型在调用时显式声明（query_sql 的 role 参数）；
+    模型没声明就退回最后一条成功查询，行为不比改造前差。
+    """
+    for role in ("display", "analysis"):
+        for r in reversed(results):
+            if (r.get("role") or "analysis") == role:
+                return r
+    return results[-1]
 
 
 def _trunc_html(result, with_label=False):
@@ -751,8 +765,8 @@ def ask(question, db_label):
                 gr.update(choices=[], value=None, visible=False),
                 "<div class='dsh-meta'><span>本次没有成功的查询结果</span></div>")
 
-    # 默认展示最近一次成功查询——但界面不宣称它是"主结果"，用户可自行切换
-    selected = results[-1]
+    # 默认展示：模型声明为 display 的那条（没有就退回最后一条成功查询）
+    selected = _pick_default(results)
     selector = gr.update(choices=_selector_choices(results),
                          value=selected["result_id"],
                          visible=len(results) > 1)

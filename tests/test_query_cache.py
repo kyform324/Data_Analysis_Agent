@@ -106,6 +106,18 @@ check("条数被裁到上限", n8 == qs.MAX_CACHED_RESULTS, f"条数={n8}")
 check("丢最旧、保留最新", ids8[0] == 6 and ids8[-1] == qs.MAX_CACHED_RESULTS + 5,
       f"首={ids8[0]} 尾={ids8[-1]}")
 
+# ── 9. role 参数：默认 analysis、显式取值被记录、非法值被拒 ──
+qs.clear_query_results()
+run("SELECT * FROM categories")                                  # 不传 role
+qs.query_sql_func("SELECT * FROM categories", role="display")     # 显式声明
+rs9 = qs.get_query_results()
+check("未传 role 记为 analysis", rs9[0]["role"] == "analysis", str(rs9[0]["role"]))
+check("传 role=display 被记录", rs9[1]["role"] == "display", str(rs9[1]["role"]))
+bad_role = json.loads(qs.query_sql_func("SELECT 1", role="nonsense"))
+check("非法 role 返回 bad_parameter",
+      bad_role["ok"] is False and bad_role["error_type"] == "bad_parameter",
+      str(bad_role.get("error_message"))[:60])
+
 print()
 print("失败项:", fails if fails else "无")
 sys.exit(1 if fails else 0)
