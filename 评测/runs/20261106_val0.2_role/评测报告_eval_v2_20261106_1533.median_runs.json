@@ -1,0 +1,290 @@
+{
+  "median_run": [
+    {
+      "question_id": "常规-02",
+      "median_run_id": "常规-02#1",
+      "median_score": 100.0,
+      "pass_count": 3,
+      "attribution": "无异常",
+      "avg_steps": 4.7,
+      "all_run_ids": [
+        "常规-02#1",
+        "常规-02#2",
+        "常规-02#3"
+      ]
+    },
+    {
+      "question_id": "常规-03",
+      "median_run_id": "常规-03#1",
+      "median_score": 100.0,
+      "pass_count": 3,
+      "attribution": "无异常",
+      "avg_steps": 4.7,
+      "all_run_ids": [
+        "常规-03#1",
+        "常规-03#2",
+        "常规-03#3"
+      ]
+    },
+    {
+      "question_id": "常规-05",
+      "median_run_id": "常规-05#1",
+      "median_score": 100.0,
+      "pass_count": 3,
+      "attribution": "无异常",
+      "avg_steps": 3.3,
+      "all_run_ids": [
+        "常规-05#1",
+        "常规-05#2",
+        "常规-05#3"
+      ]
+    },
+    {
+      "question_id": "常规-06",
+      "median_run_id": "常规-06#1",
+      "median_score": 100.0,
+      "pass_count": 3,
+      "attribution": "无异常",
+      "avg_steps": 7.7,
+      "all_run_ids": [
+        "常规-06#1",
+        "常规-06#2",
+        "常规-06#3"
+      ]
+    },
+    {
+      "question_id": "常规-07",
+      "median_run_id": "常规-07#1",
+      "median_score": 100.0,
+      "pass_count": 3,
+      "attribution": "无异常",
+      "avg_steps": 6,
+      "all_run_ids": [
+        "常规-07#1",
+        "常规-07#2",
+        "常规-07#3"
+      ]
+    },
+    {
+      "question_id": "常规-08",
+      "median_run_id": "常规-08#1",
+      "median_score": 100.0,
+      "pass_count": 3,
+      "attribution": "无异常",
+      "avg_steps": 5.7,
+      "all_run_ids": [
+        "常规-08#1",
+        "常规-08#2",
+        "常规-08#3"
+      ]
+    },
+    {
+      "question_id": "常规-09",
+      "median_run_id": "常规-09#1",
+      "median_score": 100.0,
+      "pass_count": 3,
+      "attribution": "无异常",
+      "avg_steps": 7.3,
+      "all_run_ids": [
+        "常规-09#1",
+        "常规-09#2",
+        "常规-09#3"
+      ]
+    },
+    {
+      "question_id": "常规-10",
+      "median_run_id": "常规-10#1",
+      "median_score": 100.0,
+      "pass_count": 3,
+      "attribution": "无异常",
+      "avg_steps": 5.7,
+      "all_run_ids": [
+        "常规-10#1",
+        "常规-10#2",
+        "常规-10#3"
+      ]
+    },
+    {
+      "question_id": "边界-01",
+      "median_run_id": "边界-01#1",
+      "median_score": 100.0,
+      "pass_count": 3,
+      "attribution": "无异常",
+      "avg_steps": 7,
+      "all_run_ids": [
+        "边界-01#1",
+        "边界-01#2",
+        "边界-01#3"
+      ]
+    },
+    {
+      "question_id": "边界-02",
+      "median_run_id": "边界-02#1",
+      "median_score": 100.0,
+      "pass_count": 3,
+      "attribution": "无异常",
+      "avg_steps": 4.3,
+      "all_run_ids": [
+        "边界-02#1",
+        "边界-02#2",
+        "边界-02#3"
+      ]
+    },
+    {
+      "question_id": "边界-03",
+      "median_run_id": "边界-03#1",
+      "median_score": 100.0,
+      "pass_count": 3,
+      "attribution": "无异常",
+      "avg_steps": 6.7,
+      "all_run_ids": [
+        "边界-03#1",
+        "边界-03#2",
+        "边界-03#3"
+      ]
+    },
+    {
+      "question_id": "边界-04",
+      "median_run_id": "边界-04#1",
+      "median_score": 100.0,
+      "pass_count": 3,
+      "attribution": "无异常",
+      "avg_steps": 4,
+      "all_run_ids": [
+        "边界-04#1",
+        "边界-04#2",
+        "边界-04#3"
+      ]
+    },
+    {
+      "question_id": "边界-05",
+      "median_run_id": "边界-05#1",
+      "median_score": 100.0,
+      "pass_count": 3,
+      "attribution": "无异常",
+      "avg_steps": 5.7,
+      "all_run_ids": [
+        "边界-05#1",
+        "边界-05#2",
+        "边界-05#3"
+      ]
+    },
+    {
+      "question_id": "边界-06",
+      "median_run_id": "边界-06#1",
+      "median_score": 100.0,
+      "pass_count": 3,
+      "attribution": "无异常",
+      "avg_steps": 5,
+      "all_run_ids": [
+        "边界-06#1",
+        "边界-06#2",
+        "边界-06#3"
+      ]
+    },
+    {
+      "question_id": "边界-07",
+      "median_run_id": "边界-07#1",
+      "median_score": 100.0,
+      "pass_count": 2,
+      "attribution": "无异常",
+      "avg_steps": 9,
+      "all_run_ids": [
+        "边界-07#1",
+        "边界-07#2",
+        "边界-07#3"
+      ]
+    },
+    {
+      "question_id": "脏库-01",
+      "median_run_id": "脏库-01#1",
+      "median_score": 100.0,
+      "pass_count": 2,
+      "attribution": "无异常",
+      "avg_steps": 6.3,
+      "all_run_ids": [
+        "脏库-01#1",
+        "脏库-01#2",
+        "脏库-01#3"
+      ]
+    },
+    {
+      "question_id": "脏库-02",
+      "median_run_id": "脏库-02#1",
+      "median_score": 100.0,
+      "pass_count": 3,
+      "attribution": "无异常",
+      "avg_steps": 8.7,
+      "all_run_ids": [
+        "脏库-02#1",
+        "脏库-02#2",
+        "脏库-02#3"
+      ]
+    },
+    {
+      "question_id": "脏库-03",
+      "median_run_id": "脏库-03#2",
+      "median_score": 100.0,
+      "pass_count": 2,
+      "attribution": "无异常",
+      "avg_steps": 9.7,
+      "all_run_ids": [
+        "脏库-03#1",
+        "脏库-03#2",
+        "脏库-03#3"
+      ]
+    },
+    {
+      "question_id": "脏库-04",
+      "median_run_id": "脏库-04#1",
+      "median_score": 100.0,
+      "pass_count": 3,
+      "attribution": "无异常",
+      "avg_steps": 7.3,
+      "all_run_ids": [
+        "脏库-04#1",
+        "脏库-04#2",
+        "脏库-04#3"
+      ]
+    },
+    {
+      "question_id": "脏库-05",
+      "median_run_id": "脏库-05#1",
+      "median_score": 100.0,
+      "pass_count": 3,
+      "attribution": "无异常",
+      "avg_steps": 7.7,
+      "all_run_ids": [
+        "脏库-05#1",
+        "脏库-05#2",
+        "脏库-05#3"
+      ]
+    },
+    {
+      "question_id": "常规-01",
+      "median_run_id": "常规-01#1",
+      "median_score": 75.0,
+      "pass_count": 3,
+      "attribution": "模型理解",
+      "avg_steps": 6.3,
+      "all_run_ids": [
+        "常规-01#1",
+        "常规-01#2",
+        "常规-01#3"
+      ]
+    },
+    {
+      "question_id": "常规-04",
+      "median_run_id": "常规-04#1",
+      "median_score": 100.0,
+      "pass_count": 3,
+      "attribution": "无异常",
+      "avg_steps": 6,
+      "all_run_ids": [
+        "常规-04#1",
+        "常规-04#2",
+        "常规-04#3"
+      ]
+    }
+  ]
+}

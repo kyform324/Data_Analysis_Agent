@@ -1,0 +1,194 @@
+[
+  {
+    "question_id": "常规-04",
+    "run_id": "常规-04#1",
+    "run": 1,
+    "db": "clean",
+    "question": "哪三个客户花钱最多？",
+    "ok": true,
+    "answer": "花费最多的三位客户详见下方表格。前三名之间差距明显，第三名处没有并列。\n\n**口径说明**\n- 默认口径：只统计 `order_status = '已完成'` 的订单（项目默认规则），未包含退款、取消等状态订单。\n- 时间范围：全部历史订单，未做时间筛选。\n- 消费金额为已完成订单所有明细「单价 × 数量」的合计，单位为元；不含运费，也不扣除退货（库中无独立退货金额字段）。\n- 若按当前客户所属省份展示；若客户地址有历史变更，此处以客户当前档案为准。",
+    "steps": 3,
+    "tokens": 8988,
+    "tool_trace": [
+      {
+        "seq": 1,
+        "step": 1,
+        "tool": "inspect_schema",
+        "args": {},
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 2,
+        "step": 1,
+        "tool": "policy_lookup",
+        "args": {
+          "themes": [
+            "order_scope",
+            "metric_definition",
+            "result_disclosure",
+            "money_unit"
+          ]
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 3,
+        "step": 2,
+        "tool": "query_sql",
+        "args": {
+          "sql": "WITH spend AS (\n  SELECT o.customer_id AS cid,\n         SUM(oi.unit_price_cents * oi.quantity) AS amt\n  FROM orders o\n  JOIN order_items oi ON oi.order_id = o.order_id\n  WHERE o.order_status = '已完成'\n  GROUP BY o.customer_id\n)\nSELECT c.customer_name AS \"客户\",\n       c.province AS \"省份\",\n       s.amt AS \"消费金额\"\nFROM spend s\nJOIN customers c ON c.customer_id = s.cid\nWHERE s.amt >= (\n  SELECT MIN(amt) FROM (SELECT amt FROM spend ORDER BY amt DESC LIMIT 3)\n)\nORDER BY s.amt DESC, c.customer_name",
+          "role": "display"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      }
+    ],
+    "error": null,
+    "elapsed_sec": 6.3
+  },
+  {
+    "question_id": "常规-04",
+    "run_id": "常规-04#2",
+    "run": 2,
+    "db": "clean",
+    "question": "哪三个客户花钱最多？",
+    "ok": true,
+    "answer": "**花钱最多的三个客户：客户050（浙江省，67,838 元）、客户016（湖北省，40,164 元）、客户008（广东省，29,416 元）**\n\n口径与说明：\n- **订单范围**：按默认口径只统计 `order_status='已完成'` 的订单（共 66 笔）；已取消 17 笔、运输中 9 笔、待支付 9 笔、已支付 9 笔，均未计入。全库订单只按当前状态判断，未另做历史状态回溯。\n- **消费金额**：按订单明细逐行计算「单价 × 数量」后求和，金额单位为元，库里以分存储、已由工具换算，未做任何抹零或取整。\n- **并列情况**：第 3 名 29,416 元与第 4 名 21,658 元无并列，因此称“三个客户”不含歧义。\n- **数据限制**：金额是明细成交价合计，不含运费、优惠、退款等信息（库中无相关字段）；未下单客户不会出现在排名中。我额外取了 6 行以便核对名次顺序，前 3 名即为答案，界面展示的是这 6 行。",
+    "steps": 5,
+    "tokens": 21624,
+    "tool_trace": [
+      {
+        "seq": 1,
+        "step": 1,
+        "tool": "inspect_schema",
+        "args": {},
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 2,
+        "step": 1,
+        "tool": "policy_lookup",
+        "args": {
+          "themes": [
+            "order_scope",
+            "money_unit",
+            "result_disclosure",
+            "status_history"
+          ]
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 3,
+        "step": 2,
+        "tool": "query_sql",
+        "args": {
+          "sql": "SELECT oi.order_id AS \"订单号\", SUM(oi.unit_price_cents) AS \"单价列合计\", SUM(oi.quantity * oi.unit_price_cents) AS \"乘积合计\", SUM(oi.quantity) AS \"件数\" FROM order_items oi GROUP BY oi.order_id ORDER BY oi.order_id LIMIT 3",
+          "role": "verification"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 4,
+        "step": 3,
+        "tool": "query_sql",
+        "args": {
+          "role": "display",
+          "sql": "SELECT c.customer_name AS \"客户\", c.province AS \"省份\", COUNT(DISTINCT o.order_id) AS \"完成订单数\", SUM(oi.quantity) AS \"购买件数\", SUM(oi.quantity * oi.unit_price_cents) AS \"累计消费金额\" FROM customers c JOIN orders o ON o.customer_id = c.customer_id JOIN order_items oi ON oi.order_id = o.order_id WHERE o.order_status = '已完成' GROUP BY c.customer_id, c.customer_name, c.province ORDER BY \"累计消费金额\" DESC, c.customer_id LIMIT 6"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 5,
+        "step": 4,
+        "tool": "query_sql",
+        "args": {
+          "role": "verification",
+          "sql": "SELECT order_status AS \"订单状态\", COUNT(*) AS \"订单数\" FROM orders GROUP BY order_status ORDER BY \"订单数\" DESC"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      }
+    ],
+    "error": null,
+    "elapsed_sec": 14.0
+  },
+  {
+    "question_id": "常规-04",
+    "run_id": "常规-04#3",
+    "run": 3,
+    "db": "clean",
+    "question": "哪三个客户花钱最多？",
+    "ok": true,
+    "answer": "**消费金额最高的三位客户**\n\n| 名次 | 客户 | 累计消费金额（元） | 已完成订单数 |\n|---|---|---|---|\n| 1 | 客户050 | 67,838 | 8 |\n| 2 | 客户016 | 40,164 | 4 |\n| 3 | 客户008 | 29,416 | 3 |\n\n第4名客户045为21,658元，与第3名差距明显，因此前三名之间、以及与第4名之间都不存在并列。\n\n**口径说明**\n- 订单范围：按默认口径，只统计 `order_status = '已完成'` 的订单（全库110单中有66单为已完成）；未完成、已取消等状态的订单不计入。\n- 消费金额：按订单明细中的成交单价 `unit_price_cents` × `quantity` 汇总，单位为元（工具已自动由分换算为元）。\n- 未扣除退货（库中没有独立的退货金额表，无法做净额扣减），也未计入运费等订单外费用。\n- 客户按 `customer_id` 归并，同名不同ID不会合并。\n\n界面展示的是按金额降序的前10名客户明细，供对照参考。",
+    "steps": 3,
+    "tokens": 9790,
+    "tool_trace": [
+      {
+        "seq": 1,
+        "step": 1,
+        "tool": "inspect_schema",
+        "args": {},
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 2,
+        "step": 1,
+        "tool": "policy_lookup",
+        "args": {
+          "themes": [
+            "order_scope",
+            "metric_definition",
+            "money_unit",
+            "result_disclosure"
+          ]
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 3,
+        "step": 2,
+        "tool": "query_sql",
+        "args": {
+          "sql": "SELECT c.customer_name AS \"客户\", c.customer_id AS \"客户ID\", SUM(oi.unit_price_cents * oi.quantity) AS \"累计消费金额\", COUNT(DISTINCT o.order_id) AS \"订单数\" FROM customers c JOIN orders o ON o.customer_id = c.customer_id JOIN order_items oi ON oi.order_id = o.order_id WHERE o.order_status = '已完成' GROUP BY c.customer_id, c.customer_name ORDER BY \"累计消费金额\" DESC LIMIT 10",
+          "role": "display"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 4,
+        "step": 2,
+        "tool": "query_sql",
+        "args": {
+          "sql": "SELECT COUNT(*) AS \"客户数\", (SELECT COUNT(*) FROM orders) AS \"订单总数\", (SELECT COUNT(*) FROM orders WHERE order_status='已完成') AS \"已完成订单数\" FROM customers",
+          "role": "verification"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      }
+    ],
+    "error": null,
+    "elapsed_sec": 7.8
+  }
+]

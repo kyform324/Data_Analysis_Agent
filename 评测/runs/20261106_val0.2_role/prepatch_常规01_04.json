@@ -1,0 +1,627 @@
+[
+  {
+    "question_id": "常规-01",
+    "run_id": "常规-01#1",
+    "run": 1,
+    "db": "clean",
+    "question": "九月都卖出去啥了？各卖了多少？",
+    "ok": true,
+    "answer": "**2026 年 9 月的销售情况**（本库订单数据只覆盖 2026-07-03 至 2026-09-30，「九月」唯一对应 2026 年 9 月）\n\n统计口径：以订单的下单时间在 2026-09-01 至 2026-09-30 为准；按默认规则**只统计状态为「已完成」的订单**；「销量」为订单明细中 `quantity` 的合计。按默认规则，**不扣除退货**；销售额 = 数量 × 明细单价，单位为元。\n\n9 月共 45 张订单，其中 13 张为「已完成」并计入统计，另外 32 张未计入（待支付 9、已支付 9、运输中 9、已取消 5）。全库 8 个商品中有 6 个在 9 月有成交；下表只列出有成交的商品。未列出的 2 个商品在 9 月销量为 0。\n\n另有两点说明：\n- 按订单状态历史记录核对，9 月没有「下单在 8 月及以前、9 月才完成」的跨期成交，因此用下单时间划分月份不影响结果。\n- 金额字段在库中按「分」存储，查询结果已自动换算为元，未做取整或抹零；如果你需要更低的精度，则不支持。",
+    "steps": 7,
+    "tokens": 37927,
+    "tool_trace": [
+      {
+        "seq": 1,
+        "step": 1,
+        "tool": "inspect_schema",
+        "args": {},
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 2,
+        "step": 1,
+        "tool": "policy_lookup",
+        "args": {
+          "themes": [
+            "order_scope",
+            "time_range",
+            "metric_definition"
+          ]
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 3,
+        "step": 2,
+        "tool": "query_sql",
+        "args": {
+          "sql": "SELECT MIN(order_time) AS \"最早下单时间\", MAX(order_time) AS \"最晚下单时间\", COUNT(*) AS \"订单总数\" FROM orders",
+          "role": "analysis"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 4,
+        "step": 2,
+        "tool": "query_sql",
+        "args": {
+          "sql": "SELECT substr(order_time,1,7) AS \"月份\", COUNT(*) AS \"订单数\" FROM orders GROUP BY \"月份\" ORDER BY \"月份\"",
+          "role": "analysis"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 5,
+        "step": 2,
+        "tool": "inspect_schema",
+        "args": {
+          "table": "orders"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 6,
+        "step": 3,
+        "tool": "policy_lookup",
+        "args": {
+          "themes": [
+            "status_history",
+            "result_disclosure"
+          ]
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 7,
+        "step": 4,
+        "tool": "query_sql",
+        "args": {
+          "role": "analysis",
+          "sql": "SELECT o.order_status AS \"当前状态\", COUNT(*) AS \"九月订单数\" FROM orders o WHERE o.order_time LIKE '2026-09%' GROUP BY o.order_status"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 8,
+        "step": 4,
+        "tool": "query_sql",
+        "args": {
+          "role": "analysis",
+          "sql": "SELECT o.order_id AS \"订单\", o.order_status AS \"当前状态\", h.from_status AS \"原状态\", h.to_status AS \"新状态\", h.changed_at AS \"变更时间\", h.reason_code AS \"原因\" FROM orders o JOIN order_status_history h ON h.order_id=o.order_id WHERE o.order_time LIKE '2026-09%' AND (o.order_status <> '已完成' OR h.to_status='已完成' OR h.from_status='已完成') ORDER BY o.order_id, h.changed_at"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 9,
+        "step": 5,
+        "tool": "query_sql",
+        "args": {
+          "role": "display",
+          "sql": "SELECT p.product_name AS \"商品\", p.sku AS \"SKU\", SUM(oi.quantity) AS \"销量\", SUM(oi.quantity * oi.unit_price_cents) AS \"销售额\" FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN products p ON p.product_id = oi.product_id WHERE o.order_status = '已完成' AND o.order_time >= '2026-09-01' AND o.order_time < '2026-10-01' GROUP BY p.product_id ORDER BY \"销量\" DESC"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 10,
+        "step": 5,
+        "tool": "query_sql",
+        "args": {
+          "role": "verification",
+          "sql": "SELECT oi.order_item_id AS \"明细\", oi.quantity AS \"数量\", oi.unit_price_cents AS \"单价原始值\", oi.quantity * oi.unit_price_cents AS \"金额原始值\" FROM order_items oi JOIN orders o ON o.order_id = oi.order_id WHERE o.order_status='已完成' AND o.order_time LIKE '2026-09%' ORDER BY oi.order_item_id LIMIT 3"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 11,
+        "step": 6,
+        "tool": "query_sql",
+        "args": {
+          "role": "verification",
+          "sql": "SELECT COUNT(DISTINCT o.order_id) AS \"八月及以前下单、九月完成订单数\" FROM orders o JOIN order_status_history h ON h.order_id=o.order_id WHERE h.to_status='已完成' AND h.changed_at >= '2026-09-01' AND h.changed_at < '2026-10-01' AND o.order_time < '2026-09-01'"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 12,
+        "step": 6,
+        "tool": "query_sql",
+        "args": {
+          "role": "verification",
+          "sql": "SELECT COUNT(*) AS \"商品总数\" FROM products"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      }
+    ],
+    "error": null,
+    "elapsed_sec": 21.8
+  },
+  {
+    "question_id": "常规-01",
+    "run_id": "常规-01#2",
+    "run": 2,
+    "db": "clean",
+    "question": "九月都卖出去啥了？各卖了多少？",
+    "ok": true,
+    "answer": "九月共卖出 **6 种商品、63 件，销售额合计 105,007 元**（表格见界面）。销量最高的是智能手机 24 台（95,976 元），其次蓝牙耳机 18 副（5,382 元）。\n\n**口径说明（重要）**\n- **时间范围**：按下单时间取「九月」= 2026-09-01 至 2026-09-30（本库订单数据只跨 2026-07-03 ~ 2026-09-30，因此九月只能是 2026 年 9 月，不存在跨年歧义）。\n- **订单范围**：按默认口径只统计 `order_status='已完成'` 的订单（共 13 单、34 条明细）。九月共有 45 单，另外 32 单未计入：待支付 9、已支付 9、运输中 9、已取消 5。若你想看「下单即算」或含已支付/运输中的口径，可以告诉我。\n- **销量定义**：`order_items.quantity` 合计，**不扣减退货**（项目默认口径）。\n- **金额**：单位为元，取明细下单时的成交单价快照计算，未做取整/抹零（这类金额不支持降低精度）。\n- **历史事实处理**：未用商品当前状态回溯过滤，按当时成交明细统计。\n\n**数据限制**\n- 库中没有独立的退货明细表，退货只体现在库存流水（九月区间内「退货入库」6 条、合计 +7 件），因此上表销量是**未扣退货的毛销量**；如需净销量需另行按明细关联退货流水核算。\n- 结果无并列（各商品销量均不同），全部 6 行已完整展示，未被截断。",
+    "steps": 7,
+    "tokens": 33713,
+    "tool_trace": [
+      {
+        "seq": 1,
+        "step": 1,
+        "tool": "policy_lookup",
+        "args": {
+          "themes": [
+            "order_scope",
+            "metric_definition",
+            "time_range",
+            "status_history"
+          ]
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 2,
+        "step": 1,
+        "tool": "inspect_schema",
+        "args": {},
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 3,
+        "step": 2,
+        "tool": "policy_lookup",
+        "args": {
+          "themes": [
+            "time_range"
+          ]
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 4,
+        "step": 2,
+        "tool": "query_sql",
+        "args": {
+          "sql": "SELECT MIN(order_time) AS \"最早订单时间\", MAX(order_time) AS \"最晚订单时间\", COUNT(*) AS \"订单总数\" FROM orders",
+          "role": "analysis"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 5,
+        "step": 3,
+        "tool": "query_sql",
+        "args": {
+          "role": "display",
+          "sql": "SELECT p.product_name AS \"商品\", p.sku AS \"SKU\", c.category_name AS \"分类\", SUM(oi.quantity) AS \"销量\", SUM(oi.quantity * oi.unit_price_cents) AS \"销售额\" FROM orders o JOIN order_items oi ON oi.order_id = o.order_id JOIN products p ON p.product_id = oi.product_id LEFT JOIN categories c ON c.category_id = p.category_id WHERE o.order_time >= '2026-09-01' AND o.order_time < '2026-10-01' AND o.order_status = '已完成' GROUP BY p.product_id, p.product_name, p.sku, c.category_name ORDER BY \"销量\" DESC, \"商品\" ASC"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 6,
+        "step": 3,
+        "tool": "query_sql",
+        "args": {
+          "role": "verification",
+          "sql": "SELECT order_status AS \"状态\", COUNT(*) AS \"订单数\" FROM orders WHERE order_time >= '2026-09-01' AND order_time < '2026-10-01' GROUP BY order_status"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 7,
+        "step": 4,
+        "tool": "query_sql",
+        "args": {
+          "role": "verification",
+          "sql": "SELECT (SELECT COUNT(*) FROM orders o JOIN order_items oi ON oi.order_id=o.order_id WHERE o.order_time >= '2026-09-01' AND o.order_time < '2026-10-01' AND o.order_status='已完成') AS \"九月已完成明细行数\", (SELECT COUNT(DISTINCT o.order_id) FROM orders o WHERE o.order_time >= '2026-09-01' AND o.order_time < '2026-10-01' AND o.order_status='已完成') AS \"九月已完成订单数\", (SELECT MAX(h.changed_at) FROM order_status_history h JOIN orders o ON o.order_id=h.order_id WHERE o.order_time >= '2026-09-01' AND o.order_time < '2026-10-01') AS \"九月订单最晚状态变更时间\""
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 8,
+        "step": 4,
+        "tool": "query_sql",
+        "args": {
+          "role": "verification",
+          "sql": "SELECT oi.product_id AS \"商品ID\", COUNT(*) AS \"明细行数\" FROM order_items oi LEFT JOIN products p ON p.product_id = oi.product_id WHERE p.product_id IS NULL GROUP BY oi.product_id"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 9,
+        "step": 5,
+        "tool": "query_sql",
+        "args": {
+          "role": "verification",
+          "sql": "SELECT SUM(oi.quantity) AS \"九月总销量\", COUNT(DISTINCT oi.product_id) AS \"商品种类\", SUM(oi.quantity*oi.unit_price_cents) AS \"九月总销售额\" FROM orders o JOIN order_items oi ON oi.order_id=o.order_id WHERE o.order_time >= '2026-09-01' AND o.order_time < '2026-10-01' AND o.order_status='已完成'"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 10,
+        "step": 6,
+        "tool": "query_sql",
+        "args": {
+          "role": "verification",
+          "sql": "SELECT movement_type AS \"变动类型\", COUNT(*) AS \"记录数\", SUM(quantity_delta) AS \"数量合计\" FROM inventory_movements GROUP BY movement_type"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      }
+    ],
+    "error": null,
+    "elapsed_sec": 18.8
+  },
+  {
+    "question_id": "常规-01",
+    "run_id": "常规-01#3",
+    "run": 3,
+    "db": "clean",
+    "question": "九月都卖出去啥了？各卖了多少？",
+    "ok": true,
+    "answer": "**2026 年 9 月（下单时间落在 9/1–9/30）共卖出 6 个商品，合计 63 件。** 明细表已由界面展示，这里只说明口径和结论：\n\n- 智能手机 24 件（11 笔订单）排第一，蓝牙耳机 18 件（9 笔）第二；其余为龙井茶叶 9 件、混合坚果 6 件、挂耳咖啡 5 件、运动T恤 1 件。前两名之间、各名次之间均无并列。\n- 全库共 8 个商品，9 月有成交的是 6 个，另 2 个本月无成交（因你问的是“卖了啥”，未列出 0 销量商品）。\n\n**口径与限制说明**\n- 订单范围：按默认规则只统计 `order_status = '已完成'` 的订单；销量按订单明细的购买数量合计，不扣除退货。\n- 时间口径：以订单下单时间 `order_time` 划分月份，区间为 2026-09-01 00:00 至 2026-09-30 24:00。数据库数据跨度为 2026-07-03 至 2026-09-30，其中只包含一个 9 月（2026 年 9 月），不存在跨年歧义。\n- 9 月共 45 笔订单，但仅 13 笔为「已完成」，其余为待支付 9 笔、已支付 9 笔、运输中 9 笔、已取消 5 笔，这些未完成订单的销量均未计入。已核对状态变更历史：这 13 笔的“运输中→已完成”变更全部发生在 9 月内（9/14–9/25），因此按当前状态过滤与按下单时点统计一致，不存在跨月成交被误计的情况。\n- 金额未在本次回答中列出（你只问了数量）；如需销售额，可再查，库中金额为分存储、系统会自动换算为元。",
+    "steps": 6,
+    "tokens": 29530,
+    "tool_trace": [
+      {
+        "seq": 1,
+        "step": 1,
+        "tool": "policy_lookup",
+        "args": {
+          "themes": [
+            "order_scope",
+            "time_range",
+            "metric_definition",
+            "result_disclosure"
+          ]
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 2,
+        "step": 1,
+        "tool": "inspect_schema",
+        "args": {},
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 3,
+        "step": 2,
+        "tool": "policy_lookup",
+        "args": {
+          "themes": [
+            "time_range",
+            "status_history"
+          ]
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 4,
+        "step": 2,
+        "tool": "query_sql",
+        "args": {
+          "sql": "SELECT MIN(order_time) AS \"最早下单时间\", MAX(order_time) AS \"最晚下单时间\", COUNT(*) AS \"订单数\" FROM orders",
+          "role": "analysis"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 5,
+        "step": 3,
+        "tool": "query_sql",
+        "args": {
+          "role": "verification",
+          "sql": "SELECT o.order_status AS \"当前状态\", COUNT(*) AS \"订单数\" FROM orders o WHERE o.order_time >= '2026-09-01' AND o.order_time < '2026-10-01' GROUP BY o.order_status"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 6,
+        "step": 3,
+        "tool": "query_sql",
+        "args": {
+          "role": "verification",
+          "sql": "SELECT h.from_status AS \"原状态\", h.to_status AS \"新状态\", h.reason_code AS \"原因\", COUNT(*) AS \"笔数\", MIN(h.changed_at) AS \"最早变更\", MAX(h.changed_at) AS \"最晚变更\" FROM order_status_history h JOIN orders o ON o.order_id = h.order_id WHERE o.order_time >= '2026-09-01' AND o.order_time < '2026-10-01' GROUP BY h.from_status, h.to_status, h.reason_code"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 7,
+        "step": 4,
+        "tool": "query_sql",
+        "args": {
+          "role": "analysis",
+          "sql": "SELECT oi.order_item_id AS \"明细ID\", oi.unit_price_cents AS \"单价\", oi.quantity AS \"数量\" FROM order_items oi LIMIT 3"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 8,
+        "step": 4,
+        "tool": "query_sql",
+        "args": {
+          "role": "display",
+          "sql": "SELECT p.product_name AS \"商品\", p.sku AS \"SKU\", c.category_name AS \"分类\", SUM(oi.quantity) AS \"销量（件）\", COUNT(DISTINCT o.order_id) AS \"涉及订单数\" FROM order_items oi JOIN orders o ON o.order_id = oi.order_id JOIN products p ON p.product_id = oi.product_id LEFT JOIN categories c ON c.category_id = p.category_id WHERE o.order_status = '已完成' AND o.order_time >= '2026-09-01' AND o.order_time < '2026-10-01' GROUP BY p.product_id ORDER BY SUM(oi.quantity) DESC, p.product_id"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 9,
+        "step": 5,
+        "tool": "query_sql",
+        "args": {
+          "role": "verification",
+          "sql": "SELECT (SELECT COUNT(*) FROM products) AS \"商品总数\", (SELECT COUNT(*) FROM orders WHERE order_status='已完成' AND order_time >= '2026-09-01' AND order_time < '2026-10-01') AS \"九月已完成订单数\", (SELECT SUM(quantity) FROM order_items oi JOIN orders o ON o.order_id=oi.order_id WHERE o.order_status='已完成' AND o.order_time >= '2026-09-01' AND o.order_time < '2026-10-01') AS \"九月总销量\""
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      }
+    ],
+    "error": null,
+    "elapsed_sec": 19.7
+  },
+  {
+    "question_id": "常规-04",
+    "run_id": "常规-04#1",
+    "run": 1,
+    "db": "clean",
+    "question": "哪三个客户花钱最多？",
+    "ok": true,
+    "answer": "**消费金额最高的三位客户：客户050、客户016、客户008**，其消费金额分别为 67,838 元、40,164 元和 29,416 元，具体排名见界面表格。\n\n统计说明：\n- 默认只统计 `order_status = '已完成'` 的订单，未包含其他状态的订单。\n- 消费金额按订单明细中的 `unit_price_cents × quantity` 汇总，单位为元；这是商品成交金额，未扣除退货。\n- 统计范围是全部历史已完成订单，没有设定时间区间。\n- 本次排名没有出现并列，因此第 1 至第 3 名各只有一位客户。",
+    "steps": 3,
+    "tokens": 9091,
+    "tool_trace": [
+      {
+        "seq": 1,
+        "step": 1,
+        "tool": "inspect_schema",
+        "args": {},
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 2,
+        "step": 1,
+        "tool": "policy_lookup",
+        "args": {
+          "themes": [
+            "order_scope",
+            "metric_definition",
+            "money_unit",
+            "result_disclosure"
+          ]
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 3,
+        "step": 2,
+        "tool": "query_sql",
+        "args": {
+          "sql": "WITH spend AS (\n  SELECT c.customer_id,\n         c.customer_name AS \"客户\",\n         SUM(oi.unit_price_cents * oi.quantity) AS \"消费金额\"\n  FROM orders o\n  JOIN customers c ON c.customer_id = o.customer_id\n  JOIN order_items oi ON oi.order_id = o.order_id\n  WHERE o.order_status = '已完成'\n  GROUP BY c.customer_id, c.customer_name\n), ranked AS (\n  SELECT \"客户\", \"消费金额\",\n         DENSE_RANK() OVER (ORDER BY \"消费金额\" DESC) AS rk\n  FROM spend\n)\nSELECT rk AS \"排名\", \"客户\", \"消费金额\"\nFROM ranked\nWHERE rk <= 3\nORDER BY rk, \"客户\"",
+          "role": "display"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      }
+    ],
+    "error": null,
+    "elapsed_sec": 4.8
+  },
+  {
+    "question_id": "常规-04",
+    "run_id": "常规-04#2",
+    "run": 2,
+    "db": "clean",
+    "question": "哪三个客户花钱最多？",
+    "ok": true,
+    "answer": "消费金额最高的三位客户依次是：客户050（67,838 元）、客户016（40,164 元）、客户008（29,416 元）。三者金额差距明显，第三名之后是客户045（21,658 元），因此前三名不存在并列，名次确定。\n\n口径与限制说明：\n- **订单范围**：按默认口径，只统计 `order_status = '已完成'` 的订单；待支付、已支付、运输中、已取消的订单都不计入，因此这里反映的是已完成订单的累计消费，不代表客户的全部下单金额。\n- **金额算法**：订单主表没有金额字段，金额由明细行 `quantity × unit_price_cents` 汇总得到；其中 `unit_price_cents` 是下单时的成交价快照，不随商品当前价格变化。\n- **单位**：金额单位为元（工具返回时已将分换算为元）。\n- **未扣减退货**：这是订单成交金额口径，没有扣减退货或退款。\n- **数据限制**：本次统计不包含运费、优惠、税费等其他费用项，因为数据中没有相关字段。",
+    "steps": 5,
+    "tokens": 21276,
+    "tool_trace": [
+      {
+        "seq": 1,
+        "step": 1,
+        "tool": "inspect_schema",
+        "args": {},
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 2,
+        "step": 1,
+        "tool": "policy_lookup",
+        "args": {
+          "themes": [
+            "order_scope",
+            "metric_definition",
+            "result_disclosure",
+            "money_unit"
+          ]
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 3,
+        "step": 2,
+        "tool": "inspect_schema",
+        "args": {
+          "table": "orders"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 4,
+        "step": 2,
+        "tool": "inspect_schema",
+        "args": {
+          "table": "order_items"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 5,
+        "step": 3,
+        "tool": "query_sql",
+        "args": {
+          "sql": "SELECT c.customer_id AS \"客户ID\", c.customer_name AS \"客户名称\", SUM(oi.quantity * oi.unit_price_cents) AS \"消费金额\" FROM orders o JOIN order_items oi ON oi.order_id = o.order_id JOIN customers c ON c.customer_id = o.customer_id WHERE o.order_status = '已完成' GROUP BY c.customer_id, c.customer_name ORDER BY 3 DESC LIMIT 8",
+          "role": "analysis"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 6,
+        "step": 4,
+        "tool": "query_sql",
+        "args": {
+          "role": "display",
+          "sql": "SELECT c.customer_id AS \"客户ID\", c.customer_name AS \"客户名称\", COUNT(DISTINCT o.order_id) AS \"已完成订单数\", SUM(oi.quantity) AS \"购买件数\", SUM(oi.quantity * oi.unit_price_cents) AS \"消费金额\" FROM orders o JOIN order_items oi ON oi.order_id = o.order_id JOIN customers c ON c.customer_id = o.customer_id WHERE o.order_status = '已完成' GROUP BY c.customer_id, c.customer_name ORDER BY \"消费金额\" DESC LIMIT 3"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      }
+    ],
+    "error": null,
+    "elapsed_sec": 11.2
+  },
+  {
+    "question_id": "常规-04",
+    "run_id": "常规-04#3",
+    "run": 3,
+    "db": "clean",
+    "question": "哪三个客户花钱最多？",
+    "ok": true,
+    "answer": "**花钱最多的三位客户：客户050（浙江省）、客户016（湖北省）、客户008（广东省）**，累计消费额分别约为 678.38 万元、401.64 万元、294.16 万元（金额单位为元）。完整明细见界面表格。\n\n统计规则与限制说明：\n\n- **默认订单范围**：按项目规定，仅统计 `order_status = '已完成'` 的订单，未完成或已取消订单不计入。\n- **消费额算法**：用订单明细的 `unit_price_cents` 乘以 `quantity`，再按客户汇总；每张已完成订单的明细金额都计入，不扣除退货。\n- **金额单位**：数据库虽然以「分」存储，但工具已自动换算为「元」，表中数值就是元；如果要求取整或抹零，这类敏感数据无法降低精度，因此不提供。\n- **并列处理**：使用并列排名，第 3 名没有并列，所以正好是 3 位客户。若后续排名出现并列，会全部列出。\n- **数据限制**：全库共 55 位客户，其中 43 位有已完成订单，另外 12 位没有成交记录，不在排名内；本问题只按这 43 位客户排名，不需要把所有客户都列为对象。",
+    "steps": 3,
+    "tokens": 9627,
+    "tool_trace": [
+      {
+        "seq": 1,
+        "step": 1,
+        "tool": "inspect_schema",
+        "args": {},
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 2,
+        "step": 1,
+        "tool": "policy_lookup",
+        "args": {
+          "themes": [
+            "order_scope",
+            "metric_definition",
+            "result_disclosure",
+            "money_unit"
+          ]
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 3,
+        "step": 2,
+        "tool": "query_sql",
+        "args": {
+          "sql": "WITH spend AS (\n  SELECT o.customer_id AS cid, SUM(oi.unit_price_cents * oi.quantity) AS amt\n  FROM orders o\n  JOIN order_items oi ON oi.order_id = o.order_id\n  WHERE o.order_status = '已完成'\n  GROUP BY o.customer_id\n), ranked AS (\n  SELECT cid, amt, RANK() OVER (ORDER BY amt DESC) AS rk FROM spend\n)\nSELECT c.customer_name AS \"客户\", c.province AS \"省份\", r.amt AS \"累计消费额\", r.rk AS \"排名\"\nFROM ranked r JOIN customers c ON c.customer_id = r.cid\nWHERE r.rk <= 3\nORDER BY r.rk, c.customer_name",
+          "role": "display"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      },
+      {
+        "seq": 4,
+        "step": 2,
+        "tool": "query_sql",
+        "args": {
+          "sql": "SELECT COUNT(DISTINCT o.customer_id) AS \"有已完成订单的客户数\",\n       COUNT(DISTINCT c.customer_id) AS \"客户总数\"\nFROM customers c LEFT JOIN orders o ON o.customer_id = c.customer_id AND o.order_status = '已完成'",
+          "role": "verification"
+        },
+        "ok": true,
+        "error_type": null,
+        "error_message": null
+      }
+    ],
+    "error": null,
+    "elapsed_sec": 6.6
+  }
+]

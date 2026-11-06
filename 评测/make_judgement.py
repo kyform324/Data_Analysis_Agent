@@ -21,12 +21,28 @@ runs = json.loads((OUT_DIR / "runs_raw.json").read_text(encoding="utf-8"))
 questions = json.loads((BASE / "questions.json").read_text(encoding="utf-8"))
 kind_of = {q["id"]: q["kind"] for q in questions}
 
-# run_id -> (总分, 说明, 归因)
-OVERRIDE = {
-    "脏库-01#3": (0.0, "答 14 笔，并把与 13 笔的差异解释成「跨月完成」——这是错误归因。实际差异来自订单 84 的主表状态与状态历史不一致（历史只到「运输中」），模型全程未提订单 84。四层全 0。", "模型理解"),
-    "脏库-03#2": (0.0, "达到 MAX_STEPS=12 上限被强制停止，未产出答案。按 §2.8 以结果为准，判不通过。", "查询设计"),
-    "脏库-03#3": (0.0, "第 12 步返回空回答（ok=True 但 content 为空），未给出任何结论。", "模型理解"),
-}
+# 覆盖项来源：优先读批次目录里的 overrides.json（每个批次的人工裁定不一样，
+# 不能再把 11-03 那三条写死在这里）；没有该文件时退回 11-03 的历史裁定。
+# overrides.json 格式：[{run_id, score, attribution, notes, points?}]
+OVERRIDE_FILE = OUT_DIR / "overrides.json"
+if OVERRIDE_FILE.exists():
+    OVERRIDE = {
+        o["run_id"]: {
+            "score": o["score"],
+            "attribution": o.get("attribution", "模型理解"),
+            "notes": o.get("notes", ""),
+            "points": o.get("points"),
+        }
+        for o in json.loads(OVERRIDE_FILE.read_text(encoding="utf-8"))
+    }
+else:
+    _LEGACY = {
+        "脏库-01#3": (0.0, "答 14 笔，并把与 13 笔的差异解释成「跨月完成」——这是错误归因。实际差异来自订单 84 的主表状态与状态历史不一致（历史只到「运输中」），模型全程未提订单 84。四层全 0。", "模型理解"),
+        "脏库-03#2": (0.0, "达到 MAX_STEPS=12 上限被强制停止，未产出答案。按 §2.8 以结果为准，判不通过。", "查询设计"),
+        "脏库-03#3": (0.0, "第 12 步返回空回答（ok=True 但 content 为空），未给出任何结论。", "模型理解"),
+    }
+    OVERRIDE = {k: {"score": v[0], "notes": v[1], "attribution": v[2], "points": None}
+                for k, v in _LEGACY.items()}
 
 out = {}
 for r in runs:
@@ -35,14 +51,16 @@ for r in runs:
     kind = kind_of[qid]
 
     if rid in OVERRIDE:
-        score, note, attr = OVERRIDE[rid]
-        if kind == "脏库":
+        ov = OVERRIDE[rid]
+        if ov["points"]:
+            pts = ov["points"]
+        elif kind == "脏库":
             pts = [{"point": n, "verdict": "❌", "score": 0.0} for n in ("发现", "定位", "影响", "保留")]
         else:
             pts = [{"point": "结果正确", "verdict": "❌", "score": 0.0},
                    {"point": "方法与口径正确", "verdict": "❌", "score": 0.0}]
-        out[rid] = {"score": score, "points": pts, "misreport": False,
-                    "attribution": attr, "notes": note}
+        out[rid] = {"score": ov["score"], "points": pts, "misreport": False,
+                    "attribution": ov["attribution"], "notes": ov["notes"]}
     else:
         if kind == "脏库":
             pts = [{"point": n, "verdict": "✅", "score": 25.0} for n in ("发现", "定位", "影响", "保留")]
@@ -52,8 +70,9 @@ for r in runs:
         out[rid] = {"score": 100.0, "points": pts, "misreport": False,
                     "attribution": "无异常", "notes": ""}
 
-# 脏库-01#2 的影响层措辞不精确（说「缺少状态流转记录」，实为缺「已完成」那一条），但结论正确
-out["脏库-01#2"]["notes"] = "发现与定位正确；影响层措辞略不精确（说「缺少状态流转记录」，实为缺「已完成」那一条），结论 13 vs 14 正确，不扣分。"
+# 11-03 那次的历史备注：仅当该 run 未被本批次覆盖时补充
+if "脏库-01#2" in out and out["脏库-01#2"]["score"] == 100.0 and not OVERRIDE_FILE.exists():
+    out["脏库-01#2"]["notes"] = "发现与定位正确；影响层措辞略不精确（说「缺少状态流转记录」，实为缺「已完成」那一条），结论 13 vs 14 正确，不扣分。"
 
 (OUT_DIR / "judgement.json").write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
 print(f"已写入 {OUT_DIR / 'judgement.json'}，共 {len(out)} 条")
