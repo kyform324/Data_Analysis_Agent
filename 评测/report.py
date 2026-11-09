@@ -44,6 +44,8 @@ def build_all_runs(runs, judge, meta):
             "score": round(float(j["score"]), 1),
             "grade": GRADE(j["score"]),
             "passed": PASS(j["score"]),
+            "ok": r.get("ok", True),
+            "error": r.get("error"),
             "steps": r.get("steps"),
             "tokens": r.get("tokens"),
             "answer": r.get("answer"),

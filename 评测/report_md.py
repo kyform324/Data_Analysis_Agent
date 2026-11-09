@@ -1,4 +1,5 @@
 """生成 markdown 评测报告（按 评测报告结构.md v3.1 的章节顺序）。"""
+import argparse
 import json
 import math
 import pathlib
@@ -9,11 +10,22 @@ from datetime import datetime
 BASE = pathlib.Path(__file__).resolve().parent
 EVALSET = BASE.parent / "评测集" / "eval_v2_评测集.md"
 
-runs_all = json.loads(sorted(BASE.glob("评测报告_eval_v2_*.all_runs.json"))[-1].read_text(encoding="utf-8"))
-med_all = json.loads(sorted(BASE.glob("评测报告_eval_v2_*.median_runs.json"))[-1].read_text(encoding="utf-8"))
+from run_paths import resolve_dir  # noqa: E402
+
+_ap = argparse.ArgumentParser()
+_ap.add_argument("--dir", default=None,
+                 help="批次目录，如 runs/20261106_val0.2_role；省略则取最近一个批次")
+OUT_DIR = resolve_dir(_ap.parse_args().dir)
+
+_all_files = sorted(OUT_DIR.glob("评测报告_eval_v2_*.all_runs.json"))
+if not _all_files:
+    raise SystemExit(f"{OUT_DIR} 里没有 all_runs.json，请先运行 report.py --dir {OUT_DIR.name}")
+runs_all = json.loads(_all_files[-1].read_text(encoding="utf-8"))
+med_all = json.loads(
+    sorted(OUT_DIR.glob("评测报告_eval_v2_*.median_runs.json"))[-1].read_text(encoding="utf-8"))
 runs, med = runs_all["runs"], med_all["median_run"]
 meta = runs_all["meta"]
-STAMP = re.search(r"eval_v2_(\d{8}_\d{4})", sorted(BASE.glob("评测报告_eval_v2_*.all_runs.json"))[-1].name).group(1)
+STAMP = re.search(r"eval_v2_(\d{8}_\d{4})", _all_files[-1].name).group(1)
 
 # 从评测集提取 期望答案
 text = EVALSET.read_text(encoding="utf-8")
@@ -41,7 +53,8 @@ for q in ORDER:
 
 def cls_stats(cls):
     rows = [med_by_q[q] for q in ORDER if kind(q) == cls]
-    passed = [r for r in rows if r["median_score"] >= 50]
+    # §2.1：单次 ≥50 记该次通过，3 次中 ≥2 次通过才算该题通过（不是看中位分）
+    passed = [r for r in rows if r.get("pass_count", 0) >= 2]
     avg = statistics.mean(r["median_score"] for r in rows)
     grades = {"✅": 0, "⚠️": 0, "❌": 0}
     for r in rows:
@@ -72,15 +85,29 @@ for cls, n, th in [("常规", 10, 70), ("边界", 7, 60), ("脏库", 5, 50)]:
     A(f"- **{cls}**：{len(passed)}/{n} 通过（门槛 ≥{math.ceil(n*th/100)}），平均 {avg:.1f}，档位 ✅{g['✅']} ⚠️{g['⚠️']} ❌{g['❌']}")
 comp = sum(avgs.values()) / 3
 A(f"- **综合分**：{comp:.1f}（三类等权）")
-A(f"- **硬门槛**：常规 {len(cls_stats('常规')[1])}/10 ≥7 ｜ 边界 {len(cls_stats('边界')[1])}/7 ≥5 ｜ 脏库 {len(cls_stats('脏库')[1])}/5 ≥3 → **全部通过**")
-A(f"- **最严重失败**：脏库-03 三次里仅 1 次发现「商品已删除后仍在产生新订单」，另 1 次撞 `MAX_STEPS=12` 上限、1 次完全未发现")
-A(f"- **运行完整性**：66 次运行全部完成，其中 1 次因步数上限未产出答案；无用例因工具故障作废")
-A("")
-A("> 本轮的强项是结构化 SQL 查询（常规/边界题满分），弱项集中在**开放性问题 + 跨表一致性核对**（脏库-03）。")
-A("> 这不代表模型全面达标——本评测集不测多轮追问、不测口径歧义识别（题目已写死口径）。")
-A("")
+A(f"- **硬门槛**：常规 {len(cls_stats('常规')[1])}/10 ≥7 ｜ 边界 {len(cls_stats('边界')[1])}/7 ≥5 ｜ 脏库 {len(cls_stats('脏库')[1])}/5 ≥3 → "
+  + ("**全部通过**" if all(len(cls_stats(c)[1]) >= t for c, t in [("常规", 7), ("边界", 5), ("脏库", 3)]) else "**存在不通过**"))
 
-A("### 1.1 有无 `inspect_schema` 的 A/B")
+_failed_q = [q for q in ORDER if med_by_q[q].get("pass_count", 0) < 2]
+if _failed_q:
+    _desc = "；".join(
+        f"{q}（{titles[q]}）3 次中仅 {med_by_q[q].get('pass_count', 0)} 次通过，中位分 {med_by_q[q]['median_score']:.0f}"
+        for q in _failed_q)
+    A(f"- **未通过的题**：{_desc}")
+else:
+    A("- **未通过的题**：无（22 题均至少 2 次通过）")
+_imperfect = [r for r in runs if r["score"] < 100]
+_not_ok = [r for r in runs if not r.get("ok", True)]
+A(f"- **单次未满分**：{len(_imperfect)}/{len(runs)}（未满分不等于该题不通过，判定见 §2.1）")
+A(f"- **运行完整性**：{len(runs)} 次运行，其中 {len(_not_ok)} 次未正常收尾"
+  + (f"（{', '.join(r['run_id'] for r in _not_ok)}）" if _not_ok else "；无用例因工具故障作废"))
+A("")
+A("> 强项与弱项以本节数据为准；本评测集**不测**多轮追问与口径歧义识别（题目已写死口径）。")
+
+A("")
+A("### 1.1 有无 `inspect_schema` 的 A/B（20261103 那次实验，非本批次运行）")
+A("")
+A("> 本节数据固定来自 20261103 的两组 A/B 轨迹，不随批次变化；其余章节均为本批次数据。")
 A("")
 A("同一套 22 题、同一模型（deepseek-flash）、同一 temperature 0.2、同一数据库与评分规则，唯一变量是**是否注册 `inspect_schema` 工具**：")
 A("")
@@ -235,16 +262,16 @@ A(f"| 数据库·干净 | `{meta['db']['clean']['name']}` sha256 `{meta['db']['c
 A(f"| 数据库·脏库 | `{meta['db']['dirty']['name']}` sha256 `{meta['db']['dirty']['sha256'][:16]}…` |")
 A(f"| 每题重复 | 3 次，补跑 0 次 |")
 A(f"| 评测集 | `评测集/eval_v2_评测集.md`（22 题） |")
-A(f"| 评分规则 | `AGENTGOGO/评测报告结构.md` v3.1 |")
+A(f"| 评分规则 | 本报告 §2.1（冻结） |")
 A(f"| 生成时间 | {meta['generated_at']} |")
 A("")
 A("**已知限制**")
 A("")
-A("- 脏库-01、脏库-05 的注入会溢出到脏库-02（商品 1 库存 67，合法值 66），三题已各自写明，不构成判分冲突。")
-A("- 脏库-03#2 撞 `MAX_STEPS=12` 上限被强制停止，属正常失败（§2.8 以结果为准），计 0 分。")
+A("- 本批次的采集条件、未满分条目与修复说明见同目录 `README.md`；原始记录见 `runs_raw.json`，人工裁定见 `overrides.json`。")
+A("- 硬门槛按 §2.1 核算：常规 ≥70%、边界 ≥60%、脏库 ≥50%。")
 A("- 本评测集**不测**：多轮追问、口径歧义识别、`policy_lookup` 的必需性（22 题里没有一题必须查它）。")
 A("")
 
-out = BASE / f"评测报告_eval_v2_{STAMP}.md"
+out = OUT_DIR / f"评测报告_eval_v2_{STAMP}.md"
 out.write_text("\n".join(L), encoding="utf-8")
 print(f"已生成 {out.name}（{len(L)} 行）")
