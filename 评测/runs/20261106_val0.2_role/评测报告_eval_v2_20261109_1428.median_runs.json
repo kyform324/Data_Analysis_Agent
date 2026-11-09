@@ -263,8 +263,8 @@
     {
       "question_id": "常规-01",
       "median_run_id": "常规-01#1",
-      "median_score": 75.0,
-      "pass_count": 3,
+      "median_score": 0.0,
+      "pass_count": 0,
       "attribution": "模型理解",
       "avg_steps": 6.3,
       "all_run_ids": [
