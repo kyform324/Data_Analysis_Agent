@@ -785,7 +785,7 @@ def build():
                     "<div class='dsh-header'>"
                     "<div class='dsh-title'>Data Analyst Agent</div>"
                     "<div class='dsh-sub'>基于 DeepSeek Function Calling 的自然语言数据分析："
-                    "你提问，它自己决定查哪些表、写什么 SQL。</div>"
+                    "由模型自己决定查哪些表、写什么 SQL。</div>"
                     "</div>",
                     elem_classes=["dsh-header-wrap"],
                 )
