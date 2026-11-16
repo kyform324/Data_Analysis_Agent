@@ -15,15 +15,13 @@
 
 ## 快速开始
 
-要求 Python 3.14+（实测 3.14.5）。
+要求 Python **3.12+**（本地实测 3.14.5；魔搭镜像为 3.12）。
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate          # Windows；macOS/Linux 用 source .venv/bin/activate
-pip install -r requirements-local.txt   # 本地开发用（含 gradio）
+pip install -r requirements.txt
 ```
-
-> 依赖分成两份：`requirements.txt` 只列部署平台需要安装的（Gradio 由平台镜像提供，避免每次构建重下 30+ MB）；`requirements-local.txt` 在它基础上补 `gradio`，本地开发用这份。
 
 在项目根目录建 `.env`，填三项：
 
