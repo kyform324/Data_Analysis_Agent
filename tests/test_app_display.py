@@ -22,7 +22,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "agent_software"))
+sys.path.insert(0, str(ROOT))                    # 根目录的 app.py
+sys.path.insert(0, str(ROOT / "agent_software"))  # main / tools / envelope
 
 from dotenv import load_dotenv  # noqa: E402
 

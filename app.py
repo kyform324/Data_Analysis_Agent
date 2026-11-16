@@ -15,8 +15,15 @@
 """
 import html
 import json
+import os
 import re
+import sys
 import time
+from pathlib import Path
+
+# 本文件在仓库根目录（平台要求入口放根目录），后端模块在 agent_software/ 下。
+# 把那个目录加进导入根，才能 from main import ... / from tools import ...
+sys.path.insert(0, str(Path(__file__).resolve().parent / "agent_software"))
 
 import gradio as gr
 
@@ -855,4 +862,9 @@ def build():
 
 
 if __name__ == "__main__":
-    build().queue(default_concurrency_limit=1).launch(theme=gr.themes.Soft(), css=CSS)
+    # 本地默认只绑本机；平台（魔搭等）通过环境变量指定 host/port
+    _host = os.getenv("GRADIO_SERVER_NAME", "127.0.0.1")
+    _port = int(os.getenv("GRADIO_SERVER_PORT", os.getenv("PORT", "7860")))
+    build().queue(default_concurrency_limit=1).launch(
+        server_name=_host, server_port=_port,
+        theme=gr.themes.Soft(), css=CSS)

@@ -34,7 +34,7 @@ MODEL_NAME=想调用的模型名
 启动界面：
 
 ```bash
-python agent_software/app.py
+python app.py
 ```
 
 当前版本主要面向技术演示与结果复现，优先保证核心流程与工程实现的可读性，暂不包含云端部署、权限控制和多租户隔离。服务默认绑定127.0.0.1:7860，实际访问地址以终端显示为主。由于工具层数据库连接目前是进程级全局状态，示例配置将并发上限设为1。
@@ -71,12 +71,12 @@ python agent_software/app.py
 ## 目录结构
 
 ```
+app.py             Gradio 界面（部署平台要求入口放根目录）
 agent_software/
   main.py          编排循环：调模型 → 执行工具 → 回填结果，最多 12 步
   envelope.py      五字段信封的唯一构造入口
   tools/           三个工具：query_sql / policy_lookup / inspect_schema
   config/          口径规则 20 条、表语义 9 张（唯一语义来源）
-  app.py           Gradio 界面
 评测/              跑题、判分、出报告的脚本
   runs/            按批次存放的运行结果（<日期>_<条件>/）
 评测集/            22 道题的题面与判据
